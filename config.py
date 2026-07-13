@@ -18,7 +18,7 @@ ROOF_THICKNESS = 8 * INCH
 ROOF_OVERHANG = 12 * INCH
 
 # Stair concept
-STAIR_WIDTH = 5 * FOOT
+STAIR_WIDTH = 4 * FOOT
 TREAD_DEPTH = 11 * INCH
 MAX_RISER = 7.5 * INCH
 LANDING_DEPTH = 5 * FOOT
@@ -33,12 +33,18 @@ DECK_TO_POOL_CLEARANCE = 6 * FOOT
 # Hot tub visual placeholder
 HOT_TUB_WIDTH = 8 * FOOT
 HOT_TUB_DEPTH = 8 * FOOT
-HOT_TUB_HEIGHT = 3.2 * FOOT
+HOT_TUB_ABOVE_DECK = 1 * FOOT
 
-# House placeholder
-HOUSE_DEPTH = 8 * FOOT
+# Fireplace on far left, flush with upper deck front edge
+FIREPLACE_WIDTH = 2 * FOOT
+FIREPLACE_DEPTH = 6 * FOOT
+FIREPLACE_HEIGHT = UPPER_DECK_ELEVATION + 9 * FOOT
+
+# House placeholder wall (thin wall spanning length of top deck)
+HOUSE_DEPTH = 1 * INCH
 HOUSE_HEIGHT = 22 * FOOT
-HOUSE_WIDTH = UPPER_DECK_WIDTH + LOWER_DECK_WIDTH
+HOUSE_WIDTH = UPPER_DECK_WIDTH
+DOOR_WIDTH = 6 * FOOT
 
 # Appearance
 HOUSE_COLOR = (0.35, 0.43, 0.50)  # blue-gray
