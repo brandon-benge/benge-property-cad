@@ -26,6 +26,7 @@ GENERATED_ROOTS = {
     "Decks",
     "Stairs",
     "Railings",
+    "Skirting",
     "Features",
     "PoolArea",
 }

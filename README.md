@@ -5,19 +5,18 @@ This project generates a conceptual FreeCAD model for the backyard/deck layout.
 ## Included geometry
 
 - Blue-gray house mass
-- Upper covered deck: **24'-6" × 16'**
-- Lower hot-tub deck: **15' × 19'**
+- Upper covered deck: **24'-6" × 16'** with 5½" deck boards, joists, beams, and support posts
+- Lower hot-tub deck: **15' × 19'** with perpendicular 5½" deck boards, joists, beams, and support posts
 - Upper deck approximately 8 ft above pool level
 - Lower deck approximately 4 ft above pool level
 - Diagonal upper stair run starting closer to the house
 - Wide landing integrated into the lower deck
 - Straight lower run from the landing to pool level
-- Full-length cover over the upper deck
-- Roof support posts
-- Brick fireplace/TV wall on the far left
-- Outdoor-kitchen placeholder
+- Full-length cover over the upper deck with fascia, rafters, roof support posts, and large ceiling fan
+- Brick fireplace/TV wall with right-side electric fireplace insert and TV above
+- Outdoor kitchen with cabinet run, countertop, sink, faucet, grill, and cabinet doors
 - Hot-tub placeholder
-- 34' × 12' pool and 4' paver border
+- 34' × 12' pool, sloped from 5' deep to 8' deep, with 4' paver border
 - Railings
 
 ## Project layout
