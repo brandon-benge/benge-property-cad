@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import site
 import subprocess
 import sys
-
+from pathlib import Path
 
 AUTOCOMMIT_REPOSITORY = (
     "git+https://github.com/brandon-benge/langchain_autocommit.git"
