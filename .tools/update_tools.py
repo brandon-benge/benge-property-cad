@@ -9,7 +9,17 @@ import sys
 import tempfile
 from pathlib import Path
 
-from install import DEFAULT_SOURCE_URL, acquire_source, copy_path, ensure_agent_links, load_manifest, print_report, spec
+from install import (
+    DEFAULT_SOURCE_URL,
+    acquire_source,
+    copy_missing_path,
+    copy_path,
+    ensure_agent_links,
+    load_manifest,
+    managed_specs,
+    print_report,
+    spec,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -26,8 +36,7 @@ def update_from_source(source: Path, project: Path, *, force_guidance: bool = Fa
         raise RuntimeError(f"Project folder does not exist: {project}")
     manifest = load_manifest(source)
     report = {"managed": [], "seeded": [], "guidance": [], "preserved": list(manifest["project_owned_files"]), "removed": []}
-    for item in manifest["managed_files"]:
-        source_name, destination_name = spec(item)
+    for source_name, destination_name in managed_specs(manifest):
         copy_path(source / source_name, project / destination_name)
         report["managed"].append(destination_name)
     for item in manifest["project_seed_files"]:
@@ -41,6 +50,7 @@ def update_from_source(source: Path, project: Path, *, force_guidance: bool = Fa
         source_name, destination_name = spec(item)
         destination = project / destination_name
         if (destination.exists() or destination.is_symlink()) and not force_guidance:
+            copy_missing_path(source / source_name, destination)
             if destination_name not in report["preserved"]:
                 report["preserved"].append(destination_name)
             continue
@@ -66,11 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory() as temp_name:
         source = acquire_source(args.source_url, Path(temp_name))
         report = update_from_source(source, project, force_guidance=args.force_guidance, remove_legacy=not args.skip_legacy_removal)
-    print_report({key: report[key] for key in ("managed", "seeded", "guidance", "preserved")})
-    if report["removed"]:
-        print("\nRemoved explicitly declared legacy managed paths:")
-        for path in report["removed"]:
-            print(f"- {path}")
+    print_report(report)
     print("\nManaged tool update complete; unknown and project-owned files were preserved.")
     return 0
 

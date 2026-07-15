@@ -7,6 +7,8 @@ from pathlib import Path
 
 from build123d import Compound, export_step, import_step
 from OCP.Interface import Interface_Static
+from OCP.STEPCAFControl import STEPCAFControl_Controller
+from OCP.STEPControl import STEPControl_Controller
 
 from ..determinism import write_json
 from ..exceptions import ExportError
@@ -24,6 +26,10 @@ class StepExporter:
         elements = selected_elements(model, "step", physical_only=True)
         if not elements:
             raise ExportError("STEP export requires at least one physical solid")
+        # Initialize the controllers before setting the schema. Their first initialization
+        # installs defaults and would otherwise reset this value to AP214.
+        STEPCAFControl_Controller.Init_s()
+        STEPControl_Controller.Init_s()
         Interface_Static.SetCVal_s("write.step.schema", "AP242DIS")
         compound = Compound(children=[element.geometry for element in elements])
         export_step(compound, path)
@@ -37,13 +43,15 @@ class StepExporter:
         if not bool(reloaded.is_valid):
             raise ExportError("Reloaded STEP shape is invalid")
         schema = step_schema(path)
+        if not schema.startswith("AP242_"):
+            raise ExportError(f"STEP writer did not honor the AP242 requirement: {schema}")
         report = write_json(
             target / "validation.json",
             {
                 "valid": True,
                 "schema": schema,
                 "requested_schema": "AP242",
-                "schema_note": "The verified build123d/OCP writer emitted AP214; AP242 selection was not honored.",
+                "schema_note": "The generated file was independently reloaded and its header reports AP242.",
                 "solid_count": len(reloaded.solids()),
                 "bounds_mm": [round(value, 6) for value in actual],
             },

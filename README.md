@@ -53,7 +53,7 @@ Unlike the template’s isolated regression fixture, this test writes to this pr
 
 ## Project ownership
 
-Project-specific edits belong in `model.py`, `config.py`, `params.yaml`, this README, or project-specific tests. Do not edit `.tools/`, managed root launchers, managed agent definitions, or generated files as design inputs.
+Project-specific edits belong in `model.py`, `config.py`, `params.yaml`, this README, or project-specific tests. Do not edit `.tools/`, the managed root `build.py` launcher, managed agent definitions, or generated files as design inputs.
 
 Refresh the managed template layer with:
 
@@ -61,7 +61,7 @@ Refresh the managed template layer with:
 .venv/bin/python .tools/update_tools.py
 ```
 
-The root `update_tools.py` is a compatibility alias. The updater preserves project-owned source and replaces only manifest-declared managed paths.
+Installer and updater entry points exist only under `.tools/`. The updater preserves project-owned source and replaces only manifest-declared managed paths.
 
 ## Original-project backup
 

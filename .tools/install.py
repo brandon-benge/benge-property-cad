@@ -70,15 +70,53 @@ def copy_path(source: Path, destination: Path) -> None:
     if source.is_symlink():
         destination.symlink_to(os.readlink(source))
     elif source.is_dir():
-        shutil.copytree(source, destination, symlinks=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        shutil.copytree(source, destination, symlinks=True, ignore=_managed_copy_ignores)
     else:
         shutil.copy2(source, destination)
+
+
+def _managed_copy_ignores(directory: str, names: list[str]) -> set[str]:
+    ignored = set(shutil.ignore_patterns("__pycache__", "*.pyc", "node_modules", "dist", "coverage")(directory, names))
+    current = Path(directory)
+    if current.name == "model" and current.parent.name == "public":
+        ignored.update(name for name in names if name != ".gitignore")
+    return ignored
+
+
+def copy_missing_path(source: Path, destination: Path) -> None:
+    """Seed absent guidance entries without replacing existing customizations."""
+    if not destination.exists() and not destination.is_symlink():
+        copy_path(source, destination)
+        return
+    if not source.is_dir() or source.is_symlink() or not destination.is_dir() or destination.is_symlink():
+        return
+    for child in source.iterdir():
+        copy_missing_path(child, destination / child.name)
 
 
 def spec(value: str | dict[str, str]) -> tuple[str, str]:
     if isinstance(value, str):
         return value, value
     return value["source"], value["destination"]
+
+
+def managed_specs(manifest: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return validated managed mappings before an installer or updater writes them."""
+    result: list[tuple[str, str]] = []
+    destinations: set[str] = set()
+    project_owned = set(manifest.get("project_owned_files", []))
+    for item in manifest["managed_files"]:
+        source_name, destination_name = spec(item)
+        destination = Path(destination_name)
+        if destination.is_absolute() or ".." in destination.parts or destination_name in {"", "."}:
+            raise RuntimeError(f"Unsafe managed destination in template manifest: {destination_name}")
+        if destination_name in destinations:
+            raise RuntimeError(f"Duplicate managed destination in template manifest: {destination_name}")
+        if destination_name in project_owned:
+            raise RuntimeError(f"Managed destination is also project-owned: {destination_name}")
+        destinations.add(destination_name)
+        result.append((source_name, destination_name))
+    return result
 
 
 def install_from_source(
@@ -93,9 +131,8 @@ def install_from_source(
     if any(project.iterdir()) and not force:
         raise RuntimeError(f"Project folder is not empty: {project}; use --force to preserve existing project files")
     manifest = load_manifest(source)
-    report = {"managed": [], "seeded": [], "preserved": [], "guidance": []}
-    for item in manifest["managed_files"]:
-        source_name, destination_name = spec(item)
+    report: dict[str, list[str]] = {"managed": [], "seeded": [], "preserved": [], "guidance": []}
+    for source_name, destination_name in managed_specs(manifest):
         copy_path(source / source_name, project / destination_name)
         report["managed"].append(destination_name)
     for item in manifest["project_seed_files"]:
@@ -110,6 +147,7 @@ def install_from_source(
         source_name, destination_name = spec(item)
         destination = project / destination_name
         if destination.exists() and not force_guidance:
+            copy_missing_path(source / source_name, destination)
             report["preserved"].append(destination_name)
             continue
         copy_path(source / source_name, destination)
@@ -132,9 +170,15 @@ def ensure_agent_links(project: Path) -> None:
 
 
 def print_report(report: dict[str, list[str]]) -> None:
-    labels = {"managed": "Installed managed paths", "seeded": "Seeded project-owned paths", "guidance": "Installed managed guidance", "preserved": "Preserved existing paths"}
-    for key in ("managed", "seeded", "guidance", "preserved"):
-        if report[key]:
+    labels = {
+        "managed": "Installed managed paths",
+        "seeded": "Seeded project-owned paths",
+        "guidance": "Installed managed guidance",
+        "preserved": "Preserved existing paths",
+        "removed": "Removed explicitly declared legacy managed paths",
+    }
+    for key in ("managed", "seeded", "guidance", "preserved", "removed"):
+        if report.get(key):
             print(f"\n{labels[key]}:")
             for path in report[key]:
                 print(f"- {path}")

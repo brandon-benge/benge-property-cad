@@ -12,7 +12,7 @@ python build.py
 
 On Windows, use the executables under `.venv\Scripts`.
 
-Edit project dimensions and materials in `config.py` and build shared elements in `model.py`. Preserve stable semantic IDs. Do not edit `.tools/`, managed root launchers, or files under `generated/`.
+Edit project dimensions and materials in `config.py` and build shared elements in `model.py`. Preserve stable semantic IDs. Do not edit `.tools/`, the managed root `build.py` launcher, or files under `generated/`.
 
 Useful commands:
 
@@ -24,9 +24,23 @@ python build.py --clean
 python .tools/update_tools.py
 ```
 
-The updater implementation lives under `.tools/`; `python update_tools.py` is a compatibility alias. Both commands refresh only manifest-declared managed paths. They preserve `model.py`, `config.py`, this README, project tests, and unknown files. Managed-tool fixes must be made in the upstream template repository, not in this installed project.
+The updater entry point lives exclusively under `.tools/`. It refreshes only manifest-declared managed paths and preserves `model.py`, `config.py`, this README, project tests, and unknown files. Managed-tool fixes must be made in the upstream template repository, not in this installed project.
 
 `generated/` is ignored by Git except for `.gitkeep`. CI should upload generated artifacts instead of committing them.
+
+## Review in the browser
+
+The managed `viewer/` is a static, read-only Babylon.js review app for generated artifacts. It does not use project Python as an input and does not write to `generated/`.
+
+```bash
+python build.py
+cd viewer
+npm ci
+npm run prepare-model
+npm run dev
+```
+
+Run `npm test && npm run build` for production verification. The managed Pages workflow rebuilds the Python artifacts before deploying the viewer. In GitHub, set **Settings → Pages → Source** to **GitHub Actions**. See `viewer/README.md` for offline behavior and full deployment details.
 
 FCStd is optional and truthful: `--include-fcstd` requires FreeCADCmd, creates a compatibility import from shared STEP, and is never the design authority.
 

@@ -65,6 +65,7 @@ def write_manifests(
     issues,
     git_sha: str | None,
 ) -> list[Path]:
+    build_timestamp = datetime.now(UTC).isoformat()
     target = staging / "manifests"
     design_path = write_json(target / "design-elements.json", design_manifest(model))
     design_hash = design_manifest(model)["semantic_hash"]
@@ -91,6 +92,7 @@ def write_manifests(
     build = {
         "tool_version": __version__,
         "git_sha": git_sha,
+        "build_timestamp_utc": build_timestamp,
         "python": platform.python_version(),
         "dependencies": {name: _version(name) for name in DEPENDENCIES},
         "selected_exporters": sorted(selected_exporters),
@@ -104,7 +106,7 @@ def write_manifests(
     run_path = write_json(
         target / "run-metadata.json",
         {
-            "timestamp_utc": datetime.now(UTC).isoformat(),
+            "timestamp_utc": build_timestamp,
             "host": platform.node(),
             "platform": platform.platform(),
         },

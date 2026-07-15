@@ -2,7 +2,7 @@
 
 ## Hard boundary: managed tooling
 
-Do not edit files under `.tools/`, managed root `build.py`, the root `install.py` and `update_tools.py` compatibility launchers, managed `.agents/`, or tool-registration links/configuration. These files come from the upstream template through `.tools/update_tools.py` and must not contain project-specific changes. This applies to every assistant and any subagent it invokes.
+Do not edit files under `.tools/`, managed root `build.py`, managed `.agents/`, or tool-registration links/configuration. These files come from the upstream template through `.tools/update_tools.py` and must not contain project-specific changes. This applies to every assistant and any subagent it invokes.
 
 If a requested change appears to require managed tooling, stop and explain that it belongs upstream. Do not patch managed files as a project workaround.
 
@@ -28,4 +28,4 @@ Python design source is authoritative. Generated files are disposable build prod
 - The default build must remain FreeCAD-independent.
 - Use `python build.py --include-fcstd` only when optional compatibility output is explicitly required and FreeCADCmd is installed.
 
-Managed updates replace only manifest-declared paths and preserve project-owned source. Use `python .tools/update_tools.py`; the root `python update_tools.py` command remains a compatibility alias. Use `--force-guidance` only to restore the upstream managed agent/guidance defaults.
+Managed updates replace only manifest-declared paths and preserve project-owned source. Use `python .tools/update_tools.py`; installer and updater entry points exist only under `.tools/`. Use `--force-guidance` only to restore the upstream managed agent/guidance defaults.
