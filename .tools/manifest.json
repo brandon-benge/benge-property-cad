@@ -1,0 +1,49 @@
+{
+  "tool_version": "1.0.0",
+  "managed_files": [
+    {"source": ".tools/python_cad_tools", "destination": ".tools/python_cad_tools"},
+    {"source": ".tools/requirements", "destination": ".tools/requirements"},
+    {"source": ".tools/templates/project", "destination": ".tools/templates/project"},
+    {"source": ".tools/install.py", "destination": ".tools/install.py"},
+    {"source": ".tools/update_tools.py", "destination": ".tools/update_tools.py"},
+    {"source": ".tools/manifest.json", "destination": ".tools/manifest.json"},
+    {"source": "build.py", "destination": "build.py"},
+    {"source": "install.py", "destination": "install.py"},
+    {"source": "update_tools.py", "destination": "update_tools.py"}
+  ],
+  "project_seed_files": [
+    {"source": ".tools/templates/project/model.py", "destination": "model.py"},
+    {"source": ".tools/templates/project/config.py", "destination": "config.py"},
+    {"source": ".tools/templates/project/params.yaml", "destination": "params.yaml"},
+    {"source": ".tools/templates/project/README.md", "destination": "README.md"},
+    {"source": ".tools/templates/project/pyproject.toml", "destination": "pyproject.toml"},
+    {"source": ".tools/templates/project/.gitignore", "destination": ".gitignore"},
+    {"source": ".tools/templates/project/generated/.gitkeep", "destination": "generated/.gitkeep"}
+  ],
+  "project_owned_files": [
+    "model.py",
+    "config.py",
+    "params.yaml",
+    "README.md",
+    "pyproject.toml",
+    ".gitignore",
+    "project_tests"
+  ],
+  "force_refreshable_guidance": [
+    {"source": ".agents", "destination": ".agents"},
+    {"source": ".opencode/opencode.jsonc", "destination": ".opencode/opencode.jsonc"},
+    {"source": ".tools/templates/project/AGENTS.md", "destination": "AGENTS.md"}
+  ],
+  "generated_ignored_paths": ["generated"],
+  "remove_legacy_managed": [
+    ".tools/freecad_macro_tools",
+    ".tools/macros",
+    "Project.FCMacro",
+    "Build.FCMacro",
+    "InitRepo.FCMacro",
+    "ConfigureParams.FCMacro",
+    "Revert.FCMacro",
+    "helpers.py",
+    "macro_actions.py"
+  ]
+}

@@ -1,107 +1,31 @@
-"""Rebuild the BengeBackyard model with automatic module reloading."""
-import importlib
+#!/usr/bin/env python3
+"""Managed launcher for the headless Python CAD build."""
+
+from __future__ import annotations
+
 import os
 import sys
-import traceback
+from pathlib import Path
 
-import FreeCAD as App
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-if HERE not in sys.path:
-    sys.path.insert(0, HERE)
+PROJECT_DIR = Path(__file__).resolve().parent
+TOOLS_DIR = PROJECT_DIR / ".tools"
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
 
 try:
-    import FreeCADGui as Gui
-except ImportError:
-    Gui = None
-
-DOC_NAME = "BengeBackyard"
-
-GENERATED_ROOTS = {
-    "GeneratedModel",
-    # Legacy roots created by earlier macro versions before GeneratedModel existed.
-    "Site",
-    "House",
-    "HouseMass",
-    "Decks",
-    "Stairs",
-    "Railings",
-    "Skirting",
-    "Features",
-    "PoolArea",
-}
-
-
-def _collect_descendants(obj):
-    """DFS collecting object names bottom-up (children before parent)."""
-    names = []
-    if hasattr(obj, "Group"):
-        for child in obj.Group:
-            names.extend(_collect_descendants(child))
-    names.append(obj.Name)
-    return names
-
-
-def _clean_generated(doc):
-    """Remove generated model trees from current and earlier macro versions."""
-    names_to_remove = []
-    for obj in list(doc.Objects):
-        if obj.Name in GENERATED_ROOTS or obj.Label in GENERATED_ROOTS:
-            names_to_remove.extend(_collect_descendants(obj))
-
-    for name in dict.fromkeys(names_to_remove):
-        try:
-            doc.removeObject(name)
-        except Exception:
-            pass
-
-
-def rebuild():
-    try:
-        import config
-        import helpers
-        import model
-
-        importlib.reload(config)
-        importlib.reload(helpers)
-        importlib.reload(model)
-
-        try:
-            doc = App.getDocument(DOC_NAME)
-        except NameError:
-            doc = App.newDocument(DOC_NAME)
-
-        if Gui:
-            try:
-                Gui.setActiveDocument(doc)
-            except Exception:
-                pass
-
-        _clean_generated(doc)
-
-        generated = doc.addObject("App::Part", "GeneratedModel")
-        model.build_model(doc, generated)
-
-        doc.recompute()
-
-        output = os.path.join(HERE, f"{DOC_NAME}.FCStd")
-        doc.saveAs(output)
-
-        if Gui:
-            try:
-                gv = Gui.getDocument(DOC_NAME).activeView()
-                gv.viewAxonometric()
-                gv.fitAll()
-                gv.redraw()
-            except Exception:
-                pass
-
-        print(f"{DOC_NAME} rebuild completed.\nSaved: {output}")
-
-    except Exception:
-        print(f"{DOC_NAME} rebuild failed. See traceback above.")
-        traceback.print_exc()
-
+    from python_cad_tools.cli import main  # noqa: E402
+except ModuleNotFoundError as error:
+    candidates = (
+        PROJECT_DIR / ".venv" / "bin" / "python",
+        PROJECT_DIR / ".venv" / "Scripts" / "python.exe",
+    )
+    environment_python = next((path for path in candidates if path.exists()), None)
+    if environment_python and environment_python.absolute() != Path(sys.executable).absolute():
+        os.execv(str(environment_python), [str(environment_python), str(__file__), *sys.argv[1:]])
+    raise SystemExit(
+        "CAD runtime dependencies are unavailable. Create .venv and install "
+        ".tools/requirements/runtime.lock, then rerun python build.py."
+    ) from error
 
 if __name__ == "__main__":
-    rebuild()
+    raise SystemExit(main(project_dir=PROJECT_DIR))

@@ -1,97 +1,70 @@
-# Benge Backyard FreeCAD Project
+# Benge Backyard Python CAD Project
 
-This project generates a conceptual FreeCAD model for the backyard/deck layout.
+This project is the live Python-first translation of the original Benge FreeCAD backyard concept. `model.py` and `config.py` are the authoritative design source. The reusable build system, exporters, validation, tests, and project policy are managed under `.tools/` by the `freecad_macro_project_template`.
 
-## Included geometry
+The translated source is based on `brandon-benge/benge_freecad_project` commit `76b8d75c88d606611a82d135a45fc9be7ce840fb`. It models 236 semantic elements covering:
 
-- Blue-gray house mass
-- Upper covered deck: **24'-6" × 16'** with 5½" deck boards, joists, beams, and support posts
-- Lower hot-tub deck: **15' × 19'** with perpendicular 5½" deck boards, joists, beams, and support posts
-- Upper deck approximately 8 ft above pool level
-- Lower deck approximately 4 ft above pool level
-- Diagonal upper stair run starting closer to the house
-- Wide landing integrated into the lower deck
-- Straight lower run from the landing to pool level
-- Full-length cover over the upper deck with fascia, rafters, roof support posts, and large ceiling fan
-- Brick fireplace/TV wall with right-side electric fireplace insert and TV above
-- Outdoor kitchen with cabinet run, countertop, sink, faucet, grill, and cabinet doors
-- Hot-tub placeholder
-- 34' × 12' pool, sloped from 5' deep to 8' deep, with 4' paver border
-- Railings
+- upper and lower decks, deck boards, beams, joists, ledgers, and support posts;
+- roof structure, fascia, rafters, posts, and covered-deck fan;
+- fireplace, TV, sliding door, outdoor kitchen, and hot-tub platform;
+- stairs, handrails, posts, guards, and skirting;
+- pool patio and a sloped 5-foot-to-8-foot pool volume.
 
-## Project layout
+## Setup and build
 
-- `config.py` — editable dimensions and colors
-- `helpers.py` — common geometry utilities
-- `model.py` — deck, stairs, roof, pool, railings, and feature geometry
-- `build.py` — rebuild function with automatic module reloading
-- `BengeBackyard.FCMacro` — FreeCAD launcher macro
-- `RebuildBengeBackyard.FCMacro` — shortcut macro for daily re-run
-
-## Initial setup
-
-1. Extract the project to a permanent folder (moving the folder later requires re-adding the macro).
-2. Open FreeCAD.
-3. Choose **Macro → Macros…** → **Add existing macro**.
-4. Select `BengeBackyard.FCMacro`.
-5. Run the macro.
-6. The project creates and saves `BengeBackyard.FCStd` in the same folder.
-7. Press **0** for axonometric view and then **V, F** to fit the model.
-
-## Daily development workflow
-
-```
-Edit a Python file (config.py, helpers.py, or model.py)
-  → Save
-  → Run RebuildBengeBackyard.FCMacro
-  → Review updated model
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r .tools/requirements/runtime.lock
+.venv/bin/python build.py
 ```
 
-No FreeCAD restart is needed between edits.
+The default build writes retained results under `generated/`:
 
-## Python console workflow
-
-### First run
-
-```python
-import sys
-sys.path.insert(0, "/path/to/benge_freecad_project")
-
-import build
-build.rebuild()
+```text
+generated/
+├── drawings/     # conceptual SVG, DXF, and four-page vector PDF
+├── glb/          # glTF scene and validation manifest
+├── ifc/          # IFC4 model and IfcOpenShell validation
+├── manifests/    # stable design IDs, hashes, versions, and build metadata
+├── quantities/   # geometry-derived JSON, CSV, and Markdown schedules
+└── step/         # exact BREP assembly and reload validation
 ```
 
-### Subsequent runs (after editing a file)
+Focused commands:
 
-```python
-build.rebuild()
+```bash
+.venv/bin/python build.py --validate-only
+.venv/bin/python build.py --format step
+.venv/bin/python build.py --format ifc --format quantities
+.venv/bin/python build.py --clean
 ```
 
-The `rebuild()` function internally reloads `config`, `helpers`, and `model`, so a second `importlib.reload(build)` is not required.
+`--clean` removes rebuildable files under `generated/` but preserves `generated/.gitkeep`. Generated files are ignored by Git.
 
-## Edit dimensions
+## Functional test
 
-Open `config.py`. Dimensions are expressed in millimeters, but the file uses helpers:
+The project-owned functional test builds the live root `model.py` and `config.py`, parses every output format, and reconciles the 236 stable IDs across STEP, IFC, GLB, quantities, manifests, and drawings:
 
-```python
-UPPER_DECK_WIDTH = 24.5 * FOOT
-LOWER_DECK_DEPTH = 19 * FOOT
+```bash
+.venv/bin/pytest -q
 ```
 
-After editing, run either macro or `build.rebuild()` in the Python console.
+Unlike the template’s isolated regression fixture, this test writes to this project’s persistent `generated/` directory. Its results remain available after pytest exits. The GitHub Actions workflow at `.github/workflows/build-design.yml` runs the same test and uploads `generated/` as `benge-backyard-generated`.
 
-## Troubleshooting
+## Project ownership
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Model does not appear after macro | View not refreshed | Press **0** (axonometric) then **V, F** (fit all) |
-| `ImportError: No module named build` | Python path is wrong | Check the macro's `PROJECT_DIR` or your `sys.path.insert` path |
-| Macro cannot import `build` | Project folder was moved | Re-add the macro in FreeCAD, or update `sys.path` |
-| Stale geometry visible | Macro did not complete | Run `RebuildBengeBackyard.FCMacro` again; check the Python console for tracebacks |
-| A Python exception occurs | See traceback in FreeCAD Python console | The rebuild function prints the full traceback; fix the reported error in the source file |
-| `BengeBackyard.FCStd` cannot be saved | File is locked / permissions | Close the file in FreeCAD's document tab, ensure the project folder is writable |
-| `GeneratedModel` persists with old objects | Rebuild did not clean properly | Run `build.rebuild()` from the Python console and check for errors |
+Project-specific edits belong in `model.py`, `config.py`, `params.yaml`, this README, or project-specific tests. Do not edit `.tools/`, managed root launchers, managed agent definitions, or generated files as design inputs.
 
-## Important limitation
+Refresh the managed template layer with:
 
-This is a conceptual planning model, not permit-ready structural engineering. Footings, beams, joists, connectors, ledger attachment, roof loads, hot-tub loads, guards, handrails, and stair geometry require review against local code and by qualified professionals.
+```bash
+.venv/bin/python .tools/update_tools.py
+```
+
+The root `update_tools.py` is a compatibility alias. The updater preserves project-owned source and replaces only manifest-declared managed paths.
+
+## Original-project backup
+
+The complete original project is preserved under `backup/`, including its historical Git metadata, FreeCAD files, macros, source, tools, and agent configuration. The rewrite does not read from or modify that directory during normal builds. `backup/` is ignored by the new project’s Git configuration so it cannot be accidentally committed as part of the translated project.
+
+The generated drawings are conceptual and not for construction or permitting. This project does not provide engineering, code, permit, survey, or licensed-trade approval.

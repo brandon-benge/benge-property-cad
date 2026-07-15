@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "python-cad-project"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "build123d>=0.10,<0.11",
+  "ifcopenshell>=0.8.5,<0.9",
+  "trimesh>=4.12,<5",
+  "numpy>=2.3,<3",
+  "ezdxf>=1.4,<2",
+  "reportlab>=4.4,<5",
+  "pypdf>=6,<7",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".tools", "."]
