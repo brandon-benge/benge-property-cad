@@ -158,6 +158,7 @@ def install_from_source(
     replace_project_files: bool = False,
     force_guidance: bool = False,
 ) -> dict[str, list[str]]:
+    """Install the current distribution without deleting paths from older seed sets."""
     project.mkdir(parents=True, exist_ok=True)
     if any(project.iterdir()) and not force:
         raise RuntimeError(f"Project folder is not empty: {project}; use --force to preserve existing project files")

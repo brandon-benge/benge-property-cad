@@ -16,13 +16,11 @@
   "project_seed_files": [
     {"source": ".tools/templates/project/model.py", "destination": "model.py"},
     {"source": ".tools/templates/project/config.py", "destination": "config.py"},
-    {"source": ".tools/templates/project/params.yaml", "destination": "params.yaml"},
     {"source": ".tools/templates/project/generated/.gitkeep", "destination": "generated/.gitkeep"}
   ],
   "project_owned_files": [
     "model.py",
     "config.py",
-    "params.yaml",
     "README.md",
     "pyproject.toml",
     ".gitignore",
@@ -31,7 +29,6 @@
   "protected_project_files": [
     "model.py",
     "config.py",
-    "params.yaml",
     "project_tests"
   ],
   "force_refreshable_guidance": [

@@ -18,3 +18,11 @@ dependencies = [
 
 [tool.pytest.ini_options]
 pythonpath = [".tools", "."]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["model.py", "config.py"]
+mypy_path = [".tools"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true

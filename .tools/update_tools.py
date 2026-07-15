@@ -40,6 +40,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def update_from_source(source: Path, project: Path, *, force_guidance: bool = False, remove_legacy: bool = True) -> dict[str, list[str]]:
+    """Refresh managed paths while leaving removed project seeds and unknown files untouched."""
     if not project.is_dir():
         raise RuntimeError(f"Project folder does not exist: {project}")
     manifest = load_manifest(source)

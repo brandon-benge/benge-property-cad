@@ -12,12 +12,11 @@ Project-specific design and workflow work belongs in:
 
 - `model.py` and optional project component modules;
 - `config.py`;
-- `params.yaml`;
 - `README.md`;
 - project-specific tests or validation extensions;
 - `pyproject.toml` and `.gitignore` when project dependencies or policy change.
 
-Normal managed updates preserve these project-owned files. An explicit `python .tools/update_tools.py --force` restores the template versions of `README.md`, `pyproject.toml`, `.gitignore`, this `AGENTS.md`, `opencode.jsonc`, and `.agents/`. It never replaces `model.py`, `config.py`, `params.yaml`, project tests, generated outputs, or unknown files.
+Normal managed updates preserve these project-owned files. An explicit `python .tools/update_tools.py --force` restores the template versions of `README.md`, `pyproject.toml`, `.gitignore`, this `AGENTS.md`, `opencode.jsonc`, and `.agents/`. It never replaces `model.py`, `config.py`, project tests, generated outputs, or unknown files.
 
 Python design source is authoritative. Generated files are disposable build products and must never be edited as design inputs.
 
