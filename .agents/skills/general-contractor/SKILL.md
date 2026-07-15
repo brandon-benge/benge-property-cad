@@ -17,7 +17,7 @@ Read only outputs under `generated/`, including:
 - quantity JSON, CSV, and Markdown summaries;
 - optional rendered previews created by the build.
 
-Do not read Python, FreeCAD, exporter, test, configuration, or managed tooling code. Do not load implementation skills. Do not use shell or language-server access to bypass this boundary.
+Do not read Python, FreeCAD, exporter, test, configuration, or managed tooling code. Do not load implementation skills. Do not use shell or language-server access to bypass this boundary. Do not invoke Git, `specrepo-autocommit`, or the Save agent.
 
 ## Review workflow
 

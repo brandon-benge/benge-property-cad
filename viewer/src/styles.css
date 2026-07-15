@@ -21,7 +21,7 @@ body { min-width: 320px; }
 button, a { font: inherit; }
 button { color: inherit; }
 button, summary, a { -webkit-tap-highlight-color: transparent; }
-button:focus-visible, a:focus-visible, summary:focus-visible, canvas:focus-visible, input:focus-visible {
+button:focus-visible, a:focus-visible, summary:focus-visible, canvas:focus-visible, input:focus-visible, select:focus-visible {
   outline: 3px solid #19a5d1;
   outline-offset: 2px;
 }
@@ -35,7 +35,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, canvas:focus-visib
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-size: 1.02rem; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 h2 { margin-bottom: 0; font-size: 1.05rem; letter-spacing: -.02em; }
-.header-status { display: flex; align-items: center; gap: .7rem; }
+.header-tools, .header-status { display: flex; align-items: center; gap: .7rem; }
+.unit-control { display: flex; align-items: center; gap: .42rem; color: var(--muted); font-size: .68rem; font-weight: 700; }
+.unit-control select { min-height: 34px; padding: .32rem 1.8rem .32rem .55rem; border: 1px solid #c8d4da; border-radius: .5rem; color: var(--ink); background: white; cursor: pointer; font: inherit; }
 .status-pill { display: inline-flex; align-items: center; gap: .4rem; padding: .38rem .65rem; border-radius: 999px; color: #155f44; background: #e2f6ed; font-size: .72rem; font-weight: 700; }
 .status-pill::before { content: ""; width: .42rem; height: .42rem; border-radius: 50%; background: #1f9e70; }
 .status-pill.is-warning { color: #815611; background: #fff1cf; }
@@ -68,8 +70,14 @@ h2 { margin-bottom: 0; font-size: 1.05rem; letter-spacing: -.02em; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .view-toolbar { position: absolute; z-index: 5; left: 50%; bottom: 38px; display: flex; align-items: center; gap: .2rem; max-width: calc(100% - 2rem); padding: .35rem; border: 1px solid rgb(205 216 222 / 80%); border-radius: .75rem; background: rgb(255 255 255 / 92%); box-shadow: 0 8px 22px rgb(26 43 54 / 14%); transform: translateX(-50%); backdrop-filter: blur(12px); }
 .view-toolbar button { min-height: 36px; padding: .35rem .62rem; border: 0; border-radius: .5rem; background: transparent; cursor: pointer; font-size: .72rem; font-weight: 650; }
-.view-toolbar button:hover { color: #066684; background: var(--accent-soft); }
+.view-toolbar button:hover, .view-toolbar button[aria-pressed="true"] { color: #066684; background: var(--accent-soft); }
 .toolbar-divider { width: 1px; height: 20px; margin: 0 .15rem; background: var(--line); }
+.axis-legend { position: absolute; z-index: 5; top: 1rem; right: 1rem; display: flex; gap: .32rem; padding: .38rem; border: 1px solid rgb(205 216 222 / 80%); border-radius: .65rem; background: rgb(255 255 255 / 88%); box-shadow: 0 6px 18px rgb(26 43 54 / 10%); backdrop-filter: blur(10px); }
+.axis-legend[hidden] { display: none; }
+.axis-legend span { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; color: white; font-size: .68rem; font-weight: 800; }
+.axis-x { background: #a82929; }
+.axis-y { background: #19743a; }
+.axis-z { background: #2367ad; }
 .navigation-hint { position: absolute; left: 50%; bottom: 10px; margin: 0; color: #526571; font-size: .66rem; transform: translateX(-50%); white-space: nowrap; }
 
 .property-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid var(--line); }
@@ -145,12 +153,16 @@ h2 { margin-bottom: 0; font-size: 1.05rem; letter-spacing: -.02em; }
   .view-toolbar { bottom: 34px; gap: .08rem; max-width: calc(100% - 1rem); overflow-x: auto; padding: .25rem; }
   .view-toolbar button { min-width: 47px; min-height: 38px; padding: .3rem .45rem; }
   .navigation-hint { bottom: 9px; font-size: .58rem; }
+  .axis-legend { top: .65rem; right: .65rem; }
 }
 
 @media (max-width: 430px) {
   .view-toolbar button[data-view="front"], .view-toolbar button[data-view="right"] { display: none; }
   .eyebrow { font-size: .58rem; }
   .status-pill { max-width: 108px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-status { display: none; }
+  .unit-control > span { display: none; }
+  .unit-control select { max-width: 92px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

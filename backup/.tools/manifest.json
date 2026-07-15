@@ -1,0 +1,42 @@
+{
+  "tool_version": "0.1.0",
+  "managed_files": [
+    ".tools/freecad_macro_tools",
+    ".tools/macros",
+    ".tools/manifest.json",
+    "Project.FCMacro",
+    "Build.FCMacro",
+    "InitRepo.FCMacro",
+    "ConfigureParams.FCMacro",
+    "Revert.FCMacro",
+    "build.py",
+    "helpers.py",
+    "macro_actions.py",
+    "install.py",
+    "update_tools.py"
+  ],
+  "user_files": [
+    ".agents",
+    ".claude",
+    ".codex",
+    ".opencode",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "config.py",
+    "model.py",
+    "params.yaml"
+  ],
+  "seed_files": [
+    ".agents",
+    ".opencode",
+    "AGENTS.md"
+  ],
+  "force_project_files": [
+    ".agents",
+    ".claude",
+    ".codex",
+    ".opencode",
+    "AGENTS.md"
+  ]
+}

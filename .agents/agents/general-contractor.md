@@ -15,6 +15,7 @@ Do not:
 - read Python, FreeCAD, exporter, test, or managed tooling source;
 - edit any file;
 - load implementation or format-authoring skills;
+- invoke Git, `specrepo-autocommit`, or the Save agent;
 - infer source changes from filenames or object names;
 - claim engineering, code, permit, survey, plumbing, or electrical approval.
 

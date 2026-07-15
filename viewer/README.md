@@ -14,7 +14,7 @@ npm run prepare-model
 npm run dev
 ```
 
-Open the URL printed by Vite. The viewer supports mouse, keyboard, touch, pinch zoom, two-finger pan, responsive orientation changes, and desktop/mobile property panels.
+Open the URL printed by Vite. The viewer supports mouse, keyboard, touch, pinch zoom, two-finger pan, responsive orientation changes, and desktop/mobile property panels. CAD X/Y/Z axes are visible by default and can be toggled from the camera toolbar. The Units control switches every displayed measurement between adaptive metric and US customary units. Selection properties report the element origin and occupied X/Y/Z extents from generated metadata.
 
 Production verification:
 

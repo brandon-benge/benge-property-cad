@@ -17,6 +17,8 @@ Project-specific design and workflow work belongs in:
 - project-specific tests or validation extensions;
 - `pyproject.toml` and `.gitignore` when project dependencies or policy change.
 
+Normal managed updates preserve these project-owned files. An explicit `python .tools/update_tools.py --force` restores the template versions of `README.md`, `pyproject.toml`, `.gitignore`, this `AGENTS.md`, `opencode.jsonc`, and `.agents/`. It never replaces `model.py`, `config.py`, `params.yaml`, project tests, generated outputs, or unknown files.
+
 Python design source is authoritative. Generated files are disposable build products and must never be edited as design inputs.
 
 The Python CAD Architect must not invoke Git directly or indirectly. Only the managed Save agent may persist verified changes, and only through its exclusive `specrepo-autocommit` tool.
@@ -30,4 +32,4 @@ The Python CAD Architect must not invoke Git directly or indirectly. Only the ma
 - The default build must remain FreeCAD-independent.
 - Use `python build.py --include-fcstd` only when optional compatibility output is explicitly required and FreeCADCmd is installed.
 
-Managed updates replace only manifest-declared paths and preserve project-owned source. Use `python .tools/update_tools.py`; installer and updater entry points exist only under `.tools/`. Use `--force-guidance` only to restore the upstream managed agent/guidance defaults.
+Managed updates replace only manifest-declared paths and preserve protected project source. Use `python .tools/update_tools.py`; installer and updater entry points exist only under `.tools/`. Use `--force` only to restore the upstream safe project defaults; `--force-guidance` and `--force-project-files` are compatibility aliases.

@@ -1,5 +1,7 @@
 import "./styles.css";
 import { createAppShell, renderBuildInfo, renderDownloads, renderDrawings, renderModelTree, renderProperties } from "./ui/render";
+import type { MeasurementSystem } from "./ui/measurements";
+import type { ElementMetadata } from "./types/artifacts";
 import { loadArtifactBundle, modelUrl } from "./viewer/artifacts";
 import { DesignViewer } from "./viewer/designViewer";
 import { MetadataIndex } from "./viewer/metadata";
@@ -26,8 +28,12 @@ const frameButton = required<HTMLButtonElement>("#frame-selection");
 const auxPanel = required<HTMLElement>(".aux-panel");
 const auxTitle = required<HTMLElement>("#aux-title");
 const auxContent = required<HTMLElement>("#aux-content");
+const measurementSelect = required<HTMLSelectElement>("#measurement-system");
+const axisLegend = required<HTMLElement>("#axis-legend");
 let viewer: DesignViewer | null = null;
 let selectedPanel = "model";
+let selectedItem: ElementMetadata | null = null;
+let measurementSystem: MeasurementSystem = "metric";
 
 async function start(): Promise<void> {
   try {
@@ -41,7 +47,8 @@ async function start(): Promise<void> {
     bindTree();
     viewer = new DesignViewer(required<HTMLCanvasElement>("#viewer-canvas"), metadata);
     viewer.onSelectionChanged = (item) => {
-      renderProperties(propertyContent, item);
+      selectedItem = item;
+      renderProperties(propertyContent, item, measurementSystem);
       propertyPanel.classList.toggle("has-selection", Boolean(item));
       isolateButton.disabled = !item;
       frameButton.disabled = !item;
@@ -62,6 +69,7 @@ async function start(): Promise<void> {
     setTimeout(() => loading.setAttribute("hidden", ""), 260);
     bindPanels(bundle, metadata);
     bindViewerControls();
+    bindMeasurementControls();
     void enableOfflineCache().catch(() => {
       required<HTMLElement>("#offline-status").textContent = "Online mode";
     });
@@ -120,6 +128,12 @@ function bindViewerControls(): void {
       document.querySelectorAll<HTMLInputElement>(".category-visibility").forEach((checkbox) => (checkbox.checked = true));
     }
     else if (view === "fit") viewer?.fitModel();
+    else if (view === "axes") {
+      const visible = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(visible));
+      viewer?.setAxesVisible(visible);
+      axisLegend.hidden = !visible;
+    }
     else if (view === "isometric" || view === "front" || view === "top" || view === "right") viewer?.setView(view);
   }));
   isolateButton.addEventListener("click", () => viewer?.isolateSelection());
@@ -128,6 +142,13 @@ function bindViewerControls(): void {
     if (event.key !== "Escape") return;
     if (propertyPanel.classList.contains("has-selection")) viewer?.clearSelection();
     else auxPanel.classList.remove("is-open");
+  });
+}
+
+function bindMeasurementControls(): void {
+  measurementSelect.addEventListener("change", () => {
+    measurementSystem = measurementSelect.value === "us" ? "us" : "metric";
+    renderProperties(propertyContent, selectedItem, measurementSystem);
   });
 }
 

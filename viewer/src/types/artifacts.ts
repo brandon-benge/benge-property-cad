@@ -26,6 +26,11 @@ export interface Dimensions {
   extras?: Record<string, unknown>;
 }
 
+export interface Placement {
+  translation_mm?: [number, number, number] | number[];
+  rotation_deg_xyz?: [number, number, number] | number[];
+}
+
 export interface DesignElement {
   id: string;
   name?: string | null;
@@ -39,7 +44,8 @@ export interface DesignElement {
   physical?: boolean;
   geometry_kind?: string | null;
   parent_id?: string | null;
-  placement?: Record<string, unknown>;
+  placement?: Placement;
+  bounds_mm?: [number, number, number, number, number, number] | number[];
   properties?: Record<string, unknown>;
   [key: string]: unknown;
 }

@@ -23,8 +23,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source-url", default=DEFAULT_SOURCE_URL, help="Template directory, ZIP, GitHub repository, or ZIP URL.")
     parser.add_argument("--project-dir", required=True, help="Destination project directory.")
     parser.add_argument("--force", action="store_true", help="Allow a non-empty destination; project-owned files remain preserved.")
-    parser.add_argument("--replace-project-files", action="store_true", help="Explicitly replace project-owned seed files from the template.")
-    parser.add_argument("--force-guidance", action="store_true", help="Restore template-managed agents and installed-project guidance.")
+    parser.add_argument(
+        "--replace-project-files",
+        action="store_true",
+        help="Deprecated alias for --force-guidance; protected design source is never replaced.",
+    )
+    parser.add_argument(
+        "--force-guidance",
+        action="store_true",
+        help="Restore force-refreshable project defaults; protected design source is never replaced.",
+    )
     return parser.parse_args(argv)
 
 
@@ -119,6 +127,29 @@ def managed_specs(manifest: dict[str, Any]) -> list[tuple[str, str]]:
     return result
 
 
+def force_refreshable_specs(manifest: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return safe project defaults that an explicit force option may restore."""
+    items = manifest.get("force_refreshable_files", manifest.get("force_refreshable_guidance", []))
+    protected = set(manifest.get("protected_project_files", []))
+    managed = {destination for _, destination in managed_specs(manifest)}
+    result: list[tuple[str, str]] = []
+    destinations: set[str] = set()
+    for item in items:
+        source_name, destination_name = spec(item)
+        destination = Path(destination_name)
+        if destination.is_absolute() or ".." in destination.parts or destination_name in {"", "."}:
+            raise RuntimeError(f"Unsafe force-refreshable destination in template manifest: {destination_name}")
+        if destination_name in destinations:
+            raise RuntimeError(f"Duplicate force-refreshable destination in template manifest: {destination_name}")
+        if any(destination == Path(path) or destination in Path(path).parents or Path(path) in destination.parents for path in protected):
+            raise RuntimeError(f"Protected project path is force-refreshable: {destination_name}")
+        if destination_name in managed:
+            raise RuntimeError(f"Managed destination is also force-refreshable: {destination_name}")
+        destinations.add(destination_name)
+        result.append((source_name, destination_name))
+    return result
+
+
 def install_from_source(
     source: Path,
     project: Path,
@@ -138,15 +169,15 @@ def install_from_source(
     for item in manifest["project_seed_files"]:
         source_name, destination_name = spec(item)
         destination = project / destination_name
-        if (destination.exists() or destination.is_symlink()) and not replace_project_files:
+        if destination.exists() or destination.is_symlink():
             report["preserved"].append(destination_name)
             continue
         copy_path(source / source_name, destination)
         report["seeded"].append(destination_name)
-    for item in manifest["force_refreshable_guidance"]:
-        source_name, destination_name = spec(item)
+    refresh_defaults = force_guidance or replace_project_files
+    for source_name, destination_name in force_refreshable_specs(manifest):
         destination = project / destination_name
-        if destination.exists() and not force_guidance:
+        if (destination.exists() or destination.is_symlink()) and not refresh_defaults:
             copy_missing_path(source / source_name, destination)
             report["preserved"].append(destination_name)
             continue
@@ -173,7 +204,7 @@ def print_report(report: dict[str, list[str]]) -> None:
     labels = {
         "managed": "Installed managed paths",
         "seeded": "Seeded project-owned paths",
-        "guidance": "Installed managed guidance",
+        "guidance": "Installed or refreshed project defaults",
         "preserved": "Preserved existing paths",
         "removed": "Removed explicitly declared legacy managed paths",
     }

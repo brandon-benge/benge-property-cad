@@ -294,7 +294,7 @@ def build_model(context: BuildContext) -> DesignModel:
     builder.add_box("skirting", "LowerDeckFrontSkirt", cfg.LOWER_DECK_WIDTH - cfg.STAIR_WIDTH, skirt_thickness, lower_skirt_height, lower_x + cfg.STAIR_WIDTH, -cfg.LOWER_DECK_DEPTH - skirt_thickness, ZERO, cfg.SKIRTING_COLOR)
     builder.add_box("skirting", "LowerDeckRightSkirt", skirt_thickness, cfg.LOWER_DECK_DEPTH, lower_skirt_height, lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH, ZERO, cfg.SKIRTING_COLOR)
 
-    upper_stair_start = (cfg.UPPER_DECK_WIDTH - cfg.STAIR_WIDTH / 2, -6 * cfg.FOOT)
+    upper_stair_start = (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH / 2, -6 * cfg.FOOT)
     upper_stair_end = (upper_stair_start[0], -6 * cfg.FOOT - 44 * INCH)
     stair_run("UpperStraight", upper_stair_start, upper_stair_end, cfg.UPPER_DECK_ELEVATION, cfg.LOWER_DECK_ELEVATION)
     add_deck_boards("UpperExtension", cfg.UPPER_DECK_WIDTH, -6 * cfg.FOOT, cfg.STAIR_WIDTH, 6 * cfg.FOOT, cfg.UPPER_DECK_ELEVATION, "y")
@@ -303,7 +303,7 @@ def build_model(context: BuildContext) -> DesignModel:
     rail_segment("ExtBackRail", (cfg.UPPER_DECK_WIDTH, ZERO), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO), cfg.UPPER_DECK_ELEVATION)
     rail_segment("ExtRightRail", (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
 
-    lower_stair_start = (lower_x - cfg.STAIR_WIDTH / 2, -cfg.LOWER_DECK_DEPTH)
+    lower_stair_start = (lower_x + cfg.STAIR_WIDTH / 2, -cfg.LOWER_DECK_DEPTH)
     lower_stair_end = (lower_stair_start[0], -cfg.LOWER_DECK_DEPTH - 55 * INCH)
     stair_run("LowerFront", lower_stair_start, lower_stair_end, cfg.LOWER_DECK_ELEVATION, ZERO)
 
@@ -314,7 +314,7 @@ def build_model(context: BuildContext) -> DesignModel:
     builder.add_shape("pool", "PoolWater_34x12_5ftTo8ft", pool, cfg.WATER_COLOR, Dimensions(to_mm(cfg.POOL_LENGTH), to_mm(cfg.POOL_WIDTH), to_mm(cfg.POOL_DEEP_DEPTH), extras={"shallow_depth_mm": to_mm(cfg.POOL_SHALLOW_DEPTH)}), placement=(pool_x, pool_y, ZERO), drawing_label=True, properties={"quantity_provenance": "exact_sloped_geometry"})
 
     rail_segment("UpperFrontRail", (ZERO, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), cfg.UPPER_DECK_ELEVATION)
-    rail_segment("StairSideRail", (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
+    rail_segment("StairSideRail", (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
     rail_segment("LeftEdgeRail", (ZERO, -cfg.FIREPLACE_DEPTH), (ZERO, -cfg.UPPER_DECK_DEPTH), cfg.UPPER_DECK_ELEVATION)
     rail_segment("LowerRightRail", (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH), (lower_x + cfg.LOWER_DECK_WIDTH, ZERO), cfg.LOWER_DECK_ELEVATION)
     rail_segment("LowerFrontRail", (lower_x + cfg.STAIR_WIDTH, -cfg.LOWER_DECK_DEPTH), (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH), cfg.LOWER_DECK_ELEVATION)

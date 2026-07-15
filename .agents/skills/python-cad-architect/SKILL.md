@@ -19,6 +19,8 @@ You are the only agent permitted to:
 
 Do not delegate implementation to another agent.
 
+Do not invoke Git directly or indirectly, and do not call `specrepo-autocommit`. The `save` agent exclusively owns persistence of verified changes.
+
 Always state the authority context used. Installed-project tasks must not edit `.tools/` or managed launchers. Upstream template-source tasks may edit managed paths only when the delegated task explicitly targets the reusable template.
 
 ## Model contract

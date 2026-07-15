@@ -1,7 +1,7 @@
 import { ShaderStore } from "@babylonjs/core/Engines/shaderStore";
 import { _ImportHelper } from "@babylonjs/core/import.helper";
 import { describe, expect, it } from "vitest";
-import { clippingRange, progressValue } from "../viewer/designViewer";
+import { axisScaleForBounds, cadAxisDirections, clippingRange, progressValue } from "../viewer/designViewer";
 
 describe("GLB loading feedback", () => {
   it("calculates determinate progress when the loader reports a total", () => {
@@ -18,6 +18,14 @@ describe("GLB loading feedback", () => {
     expect(range.minimum).toBeLessThan(5);
     expect(range.maximum).toBeGreaterThan(diagonal * 10);
     expect(range.maximum).toBeGreaterThan(diagonal * 1.1);
+  });
+
+  it("maps the CAD X/Y/Z axes into Babylon's loaded scene coordinates", () => {
+    const axes = cadAxisDirections();
+    expect(axes.x.asArray()).toEqual([-1, 0, 0]);
+    expect(axes.y.asArray()).toEqual([0, 0, -1]);
+    expect(axes.z.asArray()).toEqual([0, 1, 0]);
+    expect(axisScaleForBounds(10_000)).toBeCloseTo(350);
   });
 
   it("registers the highlight shaders instead of fetching them from the Vite fallback", () => {

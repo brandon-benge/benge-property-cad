@@ -1,70 +1,47 @@
-# Benge Backyard Python CAD Project
+# Python CAD Project
 
-This project is the live Python-first translation of the original Benge FreeCAD backyard concept. `model.py` and `config.py` are the authoritative design source. The reusable build system, exporters, validation, tests, and project policy are managed under `.tools/` by the `freecad_macro_project_template`.
+This project uses `model.py` and `config.py` as its authoritative design source. One headless build generates exact STEP, IFC4, GLB, conceptual SVG/DXF/PDF drawings, quantities, validation reports, and manifests without FreeCAD or Blender.
 
-The translated source is based on `brandon-benge/benge_freecad_project` commit `76b8d75c88d606611a82d135a45fc9be7ce840fb`. It models 236 semantic elements covering:
-
-- upper and lower decks, deck boards, beams, joists, ledgers, and support posts;
-- roof structure, fascia, rafters, posts, and covered-deck fan;
-- fireplace, TV, sliding door, outdoor kitchen, and hot-tub platform;
-- stairs, handrails, posts, guards, and skirting;
-- pool patio and a sloped 5-foot-to-8-foot pool volume.
-
-## Setup and build
+## Setup
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r .tools/requirements/runtime.lock
-.venv/bin/python build.py
+python build.py
 ```
 
-The default build writes retained results under `generated/`:
+On Windows, use the executables under `.venv\Scripts`.
 
-```text
-generated/
-├── drawings/     # conceptual SVG, DXF, and four-page vector PDF
-├── glb/          # glTF scene and validation manifest
-├── ifc/          # IFC4 model and IfcOpenShell validation
-├── manifests/    # stable design IDs, hashes, versions, and build metadata
-├── quantities/   # geometry-derived JSON, CSV, and Markdown schedules
-└── step/         # exact BREP assembly and reload validation
-```
+Edit project dimensions and materials in `config.py` and build shared elements in `model.py`. Preserve stable semantic IDs. Do not edit `.tools/`, the managed root `build.py` launcher, or files under `generated/`.
 
-Focused commands:
+Useful commands:
 
 ```bash
-.venv/bin/python build.py --validate-only
-.venv/bin/python build.py --format step
-.venv/bin/python build.py --format ifc --format quantities
-.venv/bin/python build.py --clean
+python build.py --format step
+python build.py --format ifc --format quantities
+python build.py --validate-only
+python build.py --clean
+python .tools/update_tools.py
 ```
 
-`--clean` removes rebuildable files under `generated/` but preserves `generated/.gitkeep`. Generated files are ignored by Git.
+The updater entry point lives exclusively under `.tools/`. A normal update preserves project-owned files. Use `python .tools/update_tools.py --force` to restore the template versions of `README.md`, `pyproject.toml`, `.gitignore`, `AGENTS.md`, `opencode.jsonc`, and `.agents/`. Even with force, `model.py`, `config.py`, `params.yaml`, `project_tests/`, generated outputs, and unknown files are never replaced. Managed-tool fixes must be made in the upstream template repository, not in this installed project.
 
-## Functional test
+`generated/` is ignored by Git except for `.gitkeep`. CI should upload generated artifacts instead of committing them.
 
-The project-owned functional test builds the live root `model.py` and `config.py`, parses every output format, and reconciles the 236 stable IDs across STEP, IFC, GLB, quantities, manifests, and drawings:
+## Review in the browser
+
+The managed `viewer/` is a static, read-only Babylon.js review app for generated artifacts. It does not use project Python as an input and does not write to `generated/`.
 
 ```bash
-.venv/bin/pytest -q
+python build.py
+cd viewer
+npm ci
+npm run prepare-model
+npm run dev
 ```
 
-Unlike the template’s isolated regression fixture, this test writes to this project’s persistent `generated/` directory. Its results remain available after pytest exits. The GitHub Actions workflow at `.github/workflows/build-design.yml` runs the same test and uploads `generated/` as `benge-backyard-generated`.
+Run `npm test && npm run build` for production verification. The managed Pages workflow rebuilds the Python artifacts before deploying the viewer. In GitHub, set **Settings → Pages → Source** to **GitHub Actions**. See `viewer/README.md` for offline behavior and full deployment details.
 
-## Project ownership
+FCStd is optional and truthful: `--include-fcstd` requires FreeCADCmd, creates a compatibility import from shared STEP, and is never the design authority.
 
-Project-specific edits belong in `model.py`, `config.py`, `params.yaml`, this README, or project-specific tests. Do not edit `.tools/`, the managed root `build.py` launcher, managed agent definitions, or generated files as design inputs.
-
-Refresh the managed template layer with:
-
-```bash
-.venv/bin/python .tools/update_tools.py
-```
-
-Installer and updater entry points exist only under `.tools/`. The updater preserves project-owned source and replaces only manifest-declared managed paths.
-
-## Original-project backup
-
-The complete original project is preserved under `backup/`, including its historical Git metadata, FreeCAD files, macros, source, tools, and agent configuration. The rewrite does not read from or modify that directory during normal builds. `backup/` is ignored by the new project’s Git configuration so it cannot be accidentally committed as part of the translated project.
-
-The generated drawings are conceptual and not for construction or permitting. This project does not provide engineering, code, permit, survey, or licensed-trade approval.
+Conceptual drawings are not for construction or permitting. This project does not provide engineering, code, permit, survey, or licensed-trade approval.

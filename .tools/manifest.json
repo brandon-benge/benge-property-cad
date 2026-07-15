@@ -17,9 +17,6 @@
     {"source": ".tools/templates/project/model.py", "destination": "model.py"},
     {"source": ".tools/templates/project/config.py", "destination": "config.py"},
     {"source": ".tools/templates/project/params.yaml", "destination": "params.yaml"},
-    {"source": ".tools/templates/project/README.md", "destination": "README.md"},
-    {"source": ".tools/templates/project/pyproject.toml", "destination": "pyproject.toml"},
-    {"source": ".tools/templates/project/.gitignore", "destination": ".gitignore"},
     {"source": ".tools/templates/project/generated/.gitkeep", "destination": "generated/.gitkeep"}
   ],
   "project_owned_files": [
@@ -31,7 +28,16 @@
     ".gitignore",
     "project_tests"
   ],
+  "protected_project_files": [
+    "model.py",
+    "config.py",
+    "params.yaml",
+    "project_tests"
+  ],
   "force_refreshable_guidance": [
+    {"source": ".tools/templates/project/README.md", "destination": "README.md"},
+    {"source": ".tools/templates/project/pyproject.toml", "destination": "pyproject.toml"},
+    {"source": ".tools/templates/project/.gitignore", "destination": ".gitignore"},
     {"source": ".agents", "destination": ".agents"},
     {"source": "opencode.jsonc", "destination": "opencode.jsonc"},
     {"source": ".tools/templates/project/AGENTS.md", "destination": "AGENTS.md"}

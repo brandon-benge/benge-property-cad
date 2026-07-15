@@ -1,11 +1,12 @@
 # Shared Agent Assets
 
-This directory contains the two canonical agent and skill definitions shared by Claude, Codex, and OpenCode through repository-local links.
+This directory contains the three canonical agent and skill definitions shared by Claude, Codex, and OpenCode through repository-local links.
 
 - `general-contractor` is the user-facing, read-only primary agent. It reviews only generated project outputs, consolidating architectural-deliverable, buildability, structural, site, plumbing, and electrical feedback.
-- `python-cad-architect` is the hidden implementation subagent. It is the only agent allowed to read or edit Python CAD source, managed CAD tooling, tests, or standards mappings.
+- `python-cad-architect` is the hidden implementation subagent. It is the only agent allowed to read or edit Python CAD source, managed CAD tooling, tests, or standards mappings, and it cannot use Git or autocommit.
+- `save` is the hidden persistence subagent. It cannot inspect, edit, test, or use a shell; in OpenCode it is the exclusive caller of `specrepo-autocommit`.
 
-The General Contractor delegates every implementation or source-level investigation to the Python CAD Architect. The Architect is not intended for direct user invocation.
+The General Contractor delegates every implementation or source-level investigation to the Python CAD Architect. The `/autocommit` command invokes Save only after work is verified. Neither hidden agent is intended for direct user invocation.
 
 Tool-specific directories link to these definitions:
 

@@ -24,7 +24,7 @@ python build.py --clean
 python .tools/update_tools.py
 ```
 
-The updater entry point lives exclusively under `.tools/`. It refreshes only manifest-declared managed paths and preserves `model.py`, `config.py`, this README, project tests, and unknown files. Managed-tool fixes must be made in the upstream template repository, not in this installed project.
+The updater entry point lives exclusively under `.tools/`. A normal update preserves project-owned files. Use `python .tools/update_tools.py --force` to restore the template versions of `README.md`, `pyproject.toml`, `.gitignore`, `AGENTS.md`, `opencode.jsonc`, and `.agents/`. Even with force, `model.py`, `config.py`, `params.yaml`, `project_tests/`, generated outputs, and unknown files are never replaced. Managed-tool fixes must be made in the upstream template repository, not in this installed project.
 
 `generated/` is ignored by Git except for `.gitkeep`. CI should upload generated artifacts instead of committing them.
 

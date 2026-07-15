@@ -1,0 +1,7 @@
+import importlib
+from freecad_macro_tools import build, macro_actions
+
+importlib.reload(build)
+importlib.reload(macro_actions)
+macro_actions.load_project_params_env()
+build.rebuild()

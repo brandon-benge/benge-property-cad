@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.FCBak
+.macro_venvs/
+.autocommit/
+.macro_env

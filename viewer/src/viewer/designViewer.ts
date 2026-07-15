@@ -1,5 +1,6 @@
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import "@babylonjs/core/Culling/ray";
+import { AxesViewer } from "@babylonjs/core/Debug/axesViewer";
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer";
@@ -42,6 +43,7 @@ export class DesignViewer {
   onSelectionChanged: (metadata: ElementMetadata | null) => void = () => undefined;
 
   private readonly highlight: HighlightLayer;
+  private readonly axesViewer: AxesViewer;
   private readonly resizeObserver: ResizeObserver;
   private readonly meshesById = new Map<string, Mesh[]>();
   private selectedId: string | null = null;
@@ -69,6 +71,9 @@ export class DesignViewer {
     this.highlight = new HighlightLayer("selection-highlight", this.scene);
     this.highlight.innerGlow = false;
     this.highlight.outerGlow = true;
+    this.axesViewer = new AxesViewer(this.scene, 1, 2, undefined, undefined, undefined, 1.5);
+    const axes = cadAxisDirections();
+    this.axesViewer.update(Vector3.Zero(), axes.x, axes.y, axes.z);
 
     this.scene.onPointerObservable.add((pointer) => {
       if (pointer.type !== PointerEventTypes.POINTERTAP) return;
@@ -109,6 +114,7 @@ export class DesignViewer {
     }
     this.modelBounds = boundsFor([...this.meshesById.values()].flat());
     if (!this.modelBounds) throw new Error("The GLB loaded, but it contains no selectable model geometry");
+    this.axesViewer.scaleLines = axisScaleForBounds(Vector3.Distance(this.modelBounds.minimum, this.modelBounds.maximum));
     this.engine.resize(true);
     this.fitModel();
     this.scene.render();
@@ -164,6 +170,12 @@ export class DesignViewer {
     if (!visible && this.selectedId && this.metadata.elements.get(this.selectedId)?.category === category) this.clearSelection();
   }
 
+  setAxesVisible(visible: boolean): void {
+    this.axesViewer.xAxis.setEnabled(visible);
+    this.axesViewer.yAxis.setEnabled(visible);
+    this.axesViewer.zAxis.setEnabled(visible);
+  }
+
   setView(view: ViewName): void {
     const positions: Record<ViewName, [number, number]> = {
       isometric: [-Math.PI / 4, Math.PI / 3],
@@ -185,6 +197,7 @@ export class DesignViewer {
     this.resizeObserver.disconnect();
     window.removeEventListener("resize", this.resize);
     window.removeEventListener("orientationchange", this.resize);
+    this.axesViewer.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }
@@ -220,6 +233,17 @@ export function clippingRange(modelDiagonal: number): { minimum: number; maximum
     minimum: Math.max(modelDiagonal * 0.0001, 0.1),
     maximum: Math.max(modelDiagonal * 25, 10_000),
   };
+}
+
+export function cadAxisDirections(): { x: Vector3; y: Vector3; z: Vector3 } {
+  // The exporter maps CAD (x, y, z) to glTF (x, z, -y). Babylon's default
+  // left-handed loader conversion then maps positive CAD X/Y/Z to -X/-Z/+Y.
+  return { x: Vector3.Left(), y: Vector3.Backward(), z: Vector3.Up() };
+}
+
+export function axisScaleForBounds(modelDiagonal: number): number {
+  // AxesViewer's arrow geometry is four times scaleLines.
+  return Math.max(modelDiagonal * 0.035, 1);
 }
 
 function boundsFor(meshes: AbstractMesh[]): { minimum: Vector3; maximum: Vector3 } | null {

@@ -15,6 +15,7 @@ from install import (
     copy_missing_path,
     copy_path,
     ensure_agent_links,
+    force_refreshable_specs,
     load_manifest,
     managed_specs,
     print_report,
@@ -26,7 +27,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Update managed Python CAD tooling safely.")
     parser.add_argument("--source-url", default=DEFAULT_SOURCE_URL, help="Template directory, ZIP, GitHub repository, or ZIP URL.")
     parser.add_argument("--project-dir", default=".", help="Existing project directory.")
-    parser.add_argument("--force-guidance", "--force-project-files", action="store_true", dest="force_guidance", help="Restore managed agent and installed-project guidance defaults.")
+    parser.add_argument(
+        "--force",
+        "--force-guidance",
+        "--force-project-files",
+        action="store_true",
+        dest="force_guidance",
+        help="Restore force-refreshable project defaults; protected design source and tests are never replaced.",
+    )
     parser.add_argument("--skip-legacy-removal", action="store_true", help="Keep explicitly listed obsolete managed paths for inspection.")
     return parser.parse_args(argv)
 
@@ -35,7 +43,8 @@ def update_from_source(source: Path, project: Path, *, force_guidance: bool = Fa
     if not project.is_dir():
         raise RuntimeError(f"Project folder does not exist: {project}")
     manifest = load_manifest(source)
-    report = {"managed": [], "seeded": [], "guidance": [], "preserved": list(manifest["project_owned_files"]), "removed": []}
+    protected = manifest.get("protected_project_files", manifest["project_owned_files"])
+    report = {"managed": [], "seeded": [], "guidance": [], "preserved": list(protected), "removed": []}
     for source_name, destination_name in managed_specs(manifest):
         copy_path(source / source_name, project / destination_name)
         report["managed"].append(destination_name)
@@ -46,8 +55,7 @@ def update_from_source(source: Path, project: Path, *, force_guidance: bool = Fa
             continue
         copy_path(source / source_name, destination)
         report["seeded"].append(destination_name)
-    for item in manifest["force_refreshable_guidance"]:
-        source_name, destination_name = spec(item)
+    for source_name, destination_name in force_refreshable_specs(manifest):
         destination = project / destination_name
         if (destination.exists() or destination.is_symlink()) and not force_guidance:
             copy_missing_path(source / source_name, destination)
@@ -77,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         source = acquire_source(args.source_url, Path(temp_name))
         report = update_from_source(source, project, force_guidance=args.force_guidance, remove_legacy=not args.skip_legacy_removal)
     print_report(report)
-    print("\nManaged tool update complete; unknown and project-owned files were preserved.")
+    print("\nManaged tool update complete; protected design source, project tests, generated outputs, and unknown files were preserved.")
     return 0
 
 

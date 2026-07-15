@@ -1,6 +1,16 @@
 import type { ArtifactBundle, ArtifactFile, ElementMetadata } from "../types/artifacts";
 import { modelUrl } from "../viewer/artifacts";
 import type { MetadataIndex } from "../viewer/metadata";
+import {
+  formatArea,
+  formatLength,
+  formatMass,
+  formatMeasurementValue,
+  formatRange,
+  formatVolume,
+  measurementLabel,
+  type MeasurementSystem,
+} from "./measurements";
 
 export function createAppShell(root: HTMLElement): void {
   root.innerHTML = `
@@ -10,7 +20,10 @@ export function createAppShell(root: HTMLElement): void {
           <span class="brand-mark" aria-hidden="true">B</span>
           <div><p class="eyebrow">Generated design</p><h1 id="model-title">Design Viewer</h1></div>
         </div>
-        <div class="header-status"><span id="build-status" class="status-pill">Preparing</span><span id="offline-status" class="offline-status" aria-live="polite"></span></div>
+        <div class="header-tools">
+          <label class="unit-control" for="measurement-system"><span>Units</span><select id="measurement-system" aria-label="Measurement units"><option value="metric">Metric</option><option value="us">US customary</option></select></label>
+          <div class="header-status"><span id="build-status" class="status-pill">Preparing</span><span id="offline-status" class="offline-status" aria-live="polite"></span></div>
+        </div>
       </header>
       <div class="workspace">
         <nav class="section-nav" aria-label="Viewer sections">
@@ -32,10 +45,12 @@ export function createAppShell(root: HTMLElement): void {
           </div>
           <div class="view-toolbar" role="toolbar" aria-label="Camera views">
             <button type="button" data-view="reset">Reset</button><button type="button" data-view="fit">Fit</button>
+            <button type="button" data-view="axes" aria-pressed="true">Axes</button>
             <span class="toolbar-divider" aria-hidden="true"></span>
             <button type="button" data-view="isometric">Iso</button><button type="button" data-view="front">Front</button>
             <button type="button" data-view="top">Top</button><button type="button" data-view="right">Right</button>
           </div>
+          <div id="axis-legend" class="axis-legend" aria-label="CAD coordinate axes"><span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span></div>
           <p class="navigation-hint">Drag to orbit · Scroll or pinch to zoom · Two fingers to pan</p>
         </main>
         <aside id="property-panel" class="property-panel" aria-labelledby="property-title">
@@ -151,7 +166,7 @@ export function renderBuildInfo(container: HTMLElement, bundle: ArtifactBundle):
   container.append(list);
 }
 
-export function renderProperties(container: HTMLElement, item: ElementMetadata | null): void {
+export function renderProperties(container: HTMLElement, item: ElementMetadata | null, system: MeasurementSystem = "metric"): void {
   container.replaceChildren();
   if (!item) return container.append(empty("Select an element in the model or tree to inspect its semantic metadata."));
   const identity = propertySection("Identity", [
@@ -159,24 +174,40 @@ export function renderProperties(container: HTMLElement, item: ElementMetadata |
     ["Material", text(item.material_id)], ["Storey", text(item.storey)], ["Source component", text(item.source_module)],
   ]);
   container.append(identity);
+  const translation = coordinateTuple(item.placement?.translation_mm, 3);
+  if (translation) {
+    container.append(propertySection("Position", [
+      ["X origin", formatLength(translation[0], system)],
+      ["Y origin", formatLength(translation[1], system)],
+      ["Z origin", formatLength(translation[2], system)],
+    ]));
+  }
+  const bounds = coordinateTuple(item.bounds_mm, 6);
+  if (bounds) {
+    container.append(propertySection("Extents", [
+      ["X range", formatRange(bounds[0], bounds[3], system)],
+      ["Y range", formatRange(bounds[1], bounds[4], system)],
+      ["Z range", formatRange(bounds[2], bounds[5], system)],
+    ]));
+  }
   if (item.dimensions) {
     const dimensions = Object.entries(item.dimensions)
       .filter(([key, value]) => key !== "extras" && value != null)
-      .map(([key, value]) => [dimensionLabel(key), formatMillimetres(value)] as [string, string]);
+      .map(([key, value]) => [measurementLabel(key), typeof value === "number" ? formatLength(value, system) : text(value)] as [string, string]);
     if (dimensions.length) container.append(propertySection("Dimensions", dimensions));
   }
   const properties: Array<[string, string]> = [];
   if (item.geometry_kind) properties.push(["Geometry", item.geometry_kind]);
   if (item.tags?.length) properties.push(["Tags", item.tags.join(", ")]);
   const custom = { ...(item.properties || {}), ...(item.dimensions?.extras || {}) };
-  for (const [key, value] of Object.entries(custom)) properties.push([humanize(key), formatValue(value)]);
+  for (const [key, value] of Object.entries(custom)) properties.push([measurementLabel(key), formatMeasurementValue(key, value, system)]);
   if (properties.length) container.append(propertySection("Properties", properties));
   if (item.quantities) {
     container.append(propertySection("Quantities", [
       ["Count", text(item.quantities.count)],
-      ["Area", formatArea(item.quantities.area_mm2)],
-      ["Volume", formatVolume(item.quantities.volume_mm3)],
-      ["Mass", item.quantities.mass_kg == null ? "—" : `${item.quantities.mass_kg.toLocaleString(undefined, { maximumFractionDigits: 3 })} kg`],
+      ["Area", formatArea(item.quantities.area_mm2, system)],
+      ["Volume", formatVolume(item.quantities.volume_mm3, system)],
+      ["Mass", formatMass(item.quantities.mass_kg, system)],
       ["Provenance", text(item.quantities.provenance)],
     ]));
   }
@@ -230,16 +261,16 @@ function text(value: unknown): string { return value == null || value === "" ? "
 function shortSha(value?: string | null): string { return value ? value.slice(0, 12) : "Not recorded"; }
 function formatDate(value?: string | null): string { return value ? new Date(value).toLocaleString() : "Not recorded"; }
 function pathName(value: string): string { return value.split("/").at(-1) || value; }
-function humanize(value: string): string { return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase()); }
-function dimensionLabel(value: string): string { return humanize(value.replace(/_mm$/, "")); }
-function formatMillimetres(value: unknown): string { return typeof value === "number" ? `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm` : text(value); }
-function formatArea(value?: number | null): string { return value == null ? "—" : `${(value / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 3 })} m²`; }
-function formatVolume(value?: number | null): string { return value == null ? "—" : `${(value / 1_000_000_000).toLocaleString(undefined, { maximumFractionDigits: 4 })} m³`; }
-function formatValue(value: unknown): string { return typeof value === "object" ? JSON.stringify(value) : text(value); }
 function formatBytes(bytes: number): string { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB`; }
 function downloadGroup(file: ArtifactFile): string {
   if (file.kind === "model" || file.kind === "step" || file.kind === "ifc") return "Models";
   if (file.kind.startsWith("drawing-")) return "Drawings";
   if (file.kind === "quantities-json" || file.kind === "csv") return "Quantities";
   return "Metadata";
+}
+
+function coordinateTuple(value: number[] | undefined, length: 3): [number, number, number] | null;
+function coordinateTuple(value: number[] | undefined, length: 6): [number, number, number, number, number, number] | null;
+function coordinateTuple(value: number[] | undefined, length: 3 | 6): number[] | null {
+  return value?.length === length && value.every(Number.isFinite) ? value : null;
 }

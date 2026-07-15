@@ -1,0 +1,24 @@
+import importlib
+from freecad_macro_tools import build, macro_actions
+
+importlib.reload(build)
+importlib.reload(macro_actions)
+macro_actions.load_project_params_env()
+
+try:
+    # InitRepo.FCMacro must not prompt. Run ConfigureParams.FCMacro first.
+    params = macro_actions.validate_project_params_for_init()
+    macro_actions.set_project_name(params["project_name"])
+    macro_actions.install_versioning_from_params(params)
+
+    if not build.rebuild():
+        raise RuntimeError("Build failed. Repository was not initialized.")
+
+    macro_actions.init_private_github_repo_from_params(params)
+    macro_actions.show_info(
+        "Init Repo",
+        f"Initialized and pushed GitHub repository:\n{params['github_location']}",
+    )
+except Exception as exc:
+    macro_actions.show_error("Init Repo Failed", str(exc))
+    raise

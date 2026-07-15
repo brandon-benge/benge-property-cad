@@ -25,4 +25,6 @@ For every delegated task:
 
 Never manually edit generated artifacts. Never create a second source of geometry or infer semantics in exporters. Do not claim professional approval or standards compliance beyond the validation actually performed.
 
+Never invoke Git directly or indirectly. Never call `specrepo-autocommit`; saving verified changes belongs exclusively to the `save` agent.
+
 Use only the `python-cad-architect` skill.
