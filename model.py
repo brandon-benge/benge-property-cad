@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+import drawing_annotations  # noqa: F401 — registers atexit handler for post-build annotation
+
 from python_cad_tools.context import BuildContext
 from python_cad_tools.elements import DesignElement, DesignModel, Dimensions, IfcMapping, MaterialSpec, Placement
 from python_cad_tools.geometry import box, cylinder_between, prism_between, sloped_pool
@@ -24,6 +26,53 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value).lower()).strip("_")
 
 
+# Human-readable material names and densities (kg/m³) keyed by (category, color_rgb).
+# Each entry: human_readable_name, density_kg_m3
+# Material IDs (generated from category + rounded RGB) remain stable for backward compatibility.
+MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float]] = {
+    # Deck
+    ("deck-board", cfg.DECK_COLOR): ("Composite Decking", 700.0),
+    ("deck-framing", cfg.SKIRTING_COLOR): ("Pressure-Treated Lumber", 500.0),
+    ("deck-framing", cfg.RAILING_COLOR): ("Pressure-Treated Lumber", 500.0),
+    # Roof
+    ("roof", cfg.RAILING_COLOR): ("Roof Fascia Assembly", 500.0),
+    ("roof", (0.18, 0.20, 0.22)): ("Roof Cover Assembly", 50.0),
+    ("roof-framing", (0.92, 0.92, 0.90)): ("Dimensional Lumber", 500.0),
+    # Features
+    ("feature", (0.55, 0.70, 0.82)): ("Glass Door Assembly", 2500.0),
+    ("feature", (0.08, 0.10, 0.12)): ("Hot Tub Shell", 150.0),
+    ("feature", cfg.RAILING_COLOR): ("Ceiling Fan Assembly", 500.0),
+    ("feature", cfg.SKIRTING_COLOR): ("Fan Blade (Wood)", 600.0),
+    # Fireplace
+    ("fireplace", cfg.BRICK_COLOR): ("Brick Masonry", 2000.0),
+    ("fireplace", (0.90, 0.28, 0.08)): ("Electric Fireplace Insert", 500.0),
+    ("fireplace", (0.02, 0.02, 0.025)): ("Flat Screen TV", 300.0),
+    ("fireplace", (0.03, 0.03, 0.03)): ("Fireplace Opening (Void)", 100.0),
+    # House
+    ("house", cfg.HOUSE_COLOR): ("Mixed Wall Assembly", 300.0),
+    # Outdoor kitchen
+    ("outdoor-kitchen", (0.45, 0.45, 0.42)): ("Granite Countertop", 2400.0),
+    ("outdoor-kitchen", (0.05, 0.05, 0.05)): ("Stainless Steel Grill", 2700.0),
+    ("outdoor-kitchen", (0.75, 0.75, 0.72)): ("Chrome Faucet", 2700.0),
+    ("outdoor-kitchen", (0.12, 0.12, 0.12)): ("Cabinet Box (Wood)", 600.0),
+    ("outdoor-kitchen", (0.12, 0.15, 0.16)): ("Stainless Steel Sink", 2700.0),
+    ("outdoor-kitchen", (0.22, 0.22, 0.22)): ("Cabinet Door (Wood)", 600.0),
+    # Pool
+    ("pool", cfg.WATER_COLOR): ("Water", 1000.0),
+    # Railing
+    ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
+    # Site
+    ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
+    # Skirting
+    ("skirting", cfg.SKIRTING_COLOR): ("Pressure-Treated Skirting", 500.0),
+    # Stair
+    ("stair", cfg.DECK_COLOR): ("Composite Tread", 700.0),
+    ("stair", cfg.SKIRTING_COLOR): ("Framing Lumber", 500.0),
+    # Structure
+    ("structure", (0.15, 0.15, 0.15)): ("Concrete Slab", 2400.0),
+}
+
+
 @dataclass
 class ModelBuilder:
     elements: list[DesignElement] = field(default_factory=list)
@@ -33,11 +82,15 @@ class ModelBuilder:
         key = (category, color)
         if key not in self.materials:
             rgb = "_".join(str(round(channel * 255)) for channel in color)
+            info = MATERIAL_REGISTRY.get(key)
+            name = info[0] if info else f"{category.title()} material"
+            density = info[1] if info else None
             self.materials[key] = MaterialSpec(
                 id=f"material.complex.{_slug(category)}.{rgb}",
-                name=f"{category.title()} material",
+                name=name,
                 category=category,
                 color_rgb=color,
+                density_kg_m3=density,
             )
         return self.materials[key]
 
@@ -265,7 +318,7 @@ def build_model(context: BuildContext) -> DesignModel:
         run = math.hypot(dx, dy)
         return dx, dy, run, -dy / run, dx / run
 
-    def stair_run(prefix: str, start: Point2, end: Point2, start_z: Length, end_z: Length) -> None:
+    def stair_run(prefix: str, start: Point2, end: Point2, start_z: Length, end_z: Length, width: Length = cfg.STAIR_WIDTH) -> None:
         dx, dy, run, px, py = line_frame(start, end)
         steps = max(1, math.ceil(abs(to_mm(start_z - end_z)) / to_mm(cfg.MAX_RISER)))
         rise = to_mm(start_z - end_z) / steps
@@ -274,9 +327,9 @@ def build_model(context: BuildContext) -> DesignModel:
             center_x = to_mm(start[0]) + dx * ratio
             center_y = to_mm(start[1]) + dy * ratio
             tread_z = to_mm(start_z) - rise * index
-            builder.add_box("stair", f"{prefix}Tread_{index:02d}", cfg.STAIR_WIDTH, cfg.TREAD_DEPTH, cfg.DECK_BOARD_THICKNESS, mm(center_x - to_mm(cfg.STAIR_WIDTH) / 2), mm(center_y - to_mm(cfg.TREAD_DEPTH) / 2), mm(tread_z), cfg.DECK_COLOR)
-            builder.add_box("stair", f"{prefix}Riser_{index:02d}", cfg.STAIR_WIDTH, 1.25 * INCH, mm(abs(rise)), mm(center_x - to_mm(cfg.STAIR_WIDTH) / 2), mm(center_y - to_mm(1.25 * INCH) / 2), mm(min(tread_z, tread_z + rise)), cfg.SKIRTING_COLOR)
-        for side_name, offset in (("Left", -to_mm(cfg.STAIR_WIDTH) / 2), ("Right", to_mm(cfg.STAIR_WIDTH) / 2)):
+            builder.add_box("stair", f"{prefix}Tread_{index:02d}", width, cfg.TREAD_DEPTH, cfg.DECK_BOARD_THICKNESS, mm(center_x - to_mm(width) / 2), mm(center_y - to_mm(cfg.TREAD_DEPTH) / 2), mm(tread_z), cfg.DECK_COLOR)
+            builder.add_box("stair", f"{prefix}Riser_{index:02d}", width, 1.25 * INCH, mm(abs(rise)), mm(center_x - to_mm(width) / 2), mm(center_y - to_mm(1.25 * INCH) / 2), mm(min(tread_z, tread_z + rise)), cfg.SKIRTING_COLOR)
+        for side_name, offset in (("Left", -to_mm(width) / 2), ("Right", to_mm(width) / 2)):
             start_x = mm(to_mm(start[0]) + px * offset)
             start_y = mm(to_mm(start[1]) + py * offset)
             end_x = mm(to_mm(end[0]) + px * offset)
@@ -293,7 +346,6 @@ def build_model(context: BuildContext) -> DesignModel:
     builder.add_box("skirting", "UpperDeckFrontSkirt", cfg.UPPER_DECK_WIDTH, skirt_thickness, upper_skirt_height, ZERO, -cfg.UPPER_DECK_DEPTH - skirt_thickness, ZERO, cfg.SKIRTING_COLOR)
     builder.add_box("skirting", "UpperDeckLeftSkirt", skirt_thickness, cfg.UPPER_DECK_DEPTH, upper_skirt_height, -skirt_thickness, -cfg.UPPER_DECK_DEPTH, ZERO, cfg.SKIRTING_COLOR)
     builder.add_box("skirting", "UpperDeckRightSkirt", skirt_thickness, cfg.UPPER_DECK_DEPTH, upper_skirt_height, cfg.UPPER_DECK_WIDTH, -cfg.UPPER_DECK_DEPTH, ZERO, cfg.SKIRTING_COLOR)
-    builder.add_box("skirting", "LowerDeckFrontSkirt", cfg.LOWER_DECK_WIDTH - cfg.STAIR_WIDTH, skirt_thickness, lower_skirt_height, lower_x + cfg.STAIR_WIDTH, -cfg.LOWER_DECK_DEPTH - skirt_thickness, ZERO, cfg.SKIRTING_COLOR)
     builder.add_box("skirting", "LowerDeckRightSkirt", skirt_thickness, cfg.LOWER_DECK_DEPTH, lower_skirt_height, lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH, ZERO, cfg.SKIRTING_COLOR)
 
     upper_stair_start = (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH / 2, -6 * cfg.FOOT)
@@ -304,10 +356,15 @@ def build_model(context: BuildContext) -> DesignModel:
     builder.add_box("skirting", "UpperDeckExtensionRightSkirt", skirt_thickness, 6 * cfg.FOOT, upper_skirt_height, cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, -6 * cfg.FOOT, ZERO, cfg.SKIRTING_COLOR)
     rail_segment("ExtBackRail", (cfg.UPPER_DECK_WIDTH, ZERO), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO), cfg.UPPER_DECK_ELEVATION)
     rail_segment("ExtRightRail", (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
+    # Post at the ExtRightRail / ExtBackRail junction corner
+    rail_post("ExtRightPost", cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO, cfg.UPPER_DECK_ELEVATION)
 
-    lower_stair_start = (lower_x + cfg.STAIR_WIDTH / 2, -cfg.LOWER_DECK_DEPTH)
+    # Change 3: Lower deck stairs span full X-axis width of the lower deck
+    lower_stair_width = cfg.LOWER_DECK_WIDTH
+    lower_stair_start = (lower_x + lower_stair_width / 2, -cfg.LOWER_DECK_DEPTH)
     lower_stair_end = (lower_stair_start[0], -cfg.LOWER_DECK_DEPTH - 55 * INCH)
-    stair_run("LowerFront", lower_stair_start, lower_stair_end, cfg.LOWER_DECK_ELEVATION, ZERO)
+    stair_run("LowerFront", lower_stair_start, lower_stair_end, cfg.LOWER_DECK_ELEVATION, ZERO, lower_stair_width)
+    # No LowerDeckFrontSkirt needed when stairs span the full deck width
 
     pool_y = -(cfg.LOWER_DECK_DEPTH + 7 * cfg.FOOT + 6 * cfg.FOOT + 15 * cfg.FOOT)
     pool_x = cfg.PATIO_BORDER
@@ -316,11 +373,12 @@ def build_model(context: BuildContext) -> DesignModel:
     builder.add_shape("pool", "PoolWater_34x12_5ftTo8ft", pool, cfg.WATER_COLOR, Dimensions(to_mm(cfg.POOL_LENGTH), to_mm(cfg.POOL_WIDTH), to_mm(cfg.POOL_DEEP_DEPTH), extras={"shallow_depth_mm": to_mm(cfg.POOL_SHALLOW_DEPTH)}), placement=(pool_x, pool_y, ZERO), drawing_label=True, properties={"quantity_provenance": "exact_sloped_geometry"})
 
     rail_segment("UpperFrontRail", (ZERO, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), cfg.UPPER_DECK_ELEVATION)
-    rail_segment("StairSideRail", (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
+    # StairSideRail connects UpperPost_R to UpperStraightLeftPost_Top
+    rail_segment("StairSideRail", (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH), (cfg.UPPER_DECK_WIDTH, upper_stair_start[1]), cfg.UPPER_DECK_ELEVATION)
     rail_segment("LeftEdgeRail", (ZERO, -cfg.FIREPLACE_DEPTH), (ZERO, -cfg.UPPER_DECK_DEPTH), cfg.UPPER_DECK_ELEVATION)
     rail_segment("LowerRightRail", (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH), (lower_x + cfg.LOWER_DECK_WIDTH, ZERO), cfg.LOWER_DECK_ELEVATION)
-    rail_segment("LowerFrontRail", (lower_x + cfg.STAIR_WIDTH, -cfg.LOWER_DECK_DEPTH), (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH), cfg.LOWER_DECK_ELEVATION)
     rail_segment("LowerBackRail", (lower_x, ZERO), (lower_x + cfg.LOWER_DECK_WIDTH, ZERO), cfg.LOWER_DECK_ELEVATION)
+    # LowerFrontRail not needed when stairs span the full deck width
     for name, post_x, post_y, post_z in [
         ("UpperPost_L", ZERO, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),
         ("UpperPost_R", cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),

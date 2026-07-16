@@ -13,6 +13,8 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { Scene } from "@babylonjs/core/scene";
+import "@babylonjs/core/Shaders/default.fragment";
+import "@babylonjs/core/Shaders/default.vertex";
 import "@babylonjs/core/Shaders/glowBlurPostProcess.fragment";
 import "@babylonjs/core/Shaders/glowMapGeneration.fragment";
 import "@babylonjs/core/Shaders/glowMapGeneration.vertex";

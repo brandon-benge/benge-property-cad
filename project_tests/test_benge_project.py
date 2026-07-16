@@ -24,7 +24,7 @@ def test_benge_project_builds_and_reconciles() -> None:
     build = json.loads((generated / "manifests/build-manifest.json").read_text(encoding="utf-8"))
     ids = {element["id"] for element in design["elements"] if element["physical"]}
     assert build["validation_status"] == "passed"
-    assert build["model_element_count"] == 236
+    assert build["model_element_count"] == 235
     assert design["metadata"]["source_commit"] == SOURCE_COMMIT
     assert {
         "complex.house.house_mass",

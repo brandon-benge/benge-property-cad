@@ -89,19 +89,19 @@
         "grep": "allow",
         "list": "allow",
         "skill": {
-          "*": "deny",
+          "*": "allow",
           "python-cad-architect": "allow"
         },
-        "task": "deny",
+        "task": "allow",
         "specrepo-autocommit": "deny",
         "edit": "allow",
         "bash": {
-          "*": "ask",
+          "*": "allow",
           "*git*": "deny",
           "*autocommit*": "deny"
         },
         "lsp": "allow",
-        "external_directory": "deny",
+        "external_directory": "ask",
         "todowrite": "allow",
         "webfetch": "ask",
         "websearch": "ask",

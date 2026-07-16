@@ -35,6 +35,11 @@ describe("GLB loading feedback", () => {
     expect(ShaderStore.ShadersStore.glowMapMergePixelShader).toContain("void main");
   });
 
+  it("registers the default shaders used by the axes viewer", () => {
+    expect(ShaderStore.ShadersStore.defaultVertexShader).toContain("void main");
+    expect(ShaderStore.ShadersStore.defaultPixelShader).toContain("void main");
+  });
+
   it("registers the PBR shaders used by prepared GLB materials", () => {
     expect(ShaderStore.ShadersStore.pbrVertexShader).toContain("void main");
     expect(ShaderStore.ShadersStore.pbrPixelShader).toContain("void main");
