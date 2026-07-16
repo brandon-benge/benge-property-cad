@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 VIEWER_DIR="$ROOT_DIR/viewer"
+RUNTIME_LOCK="$ROOT_DIR/.tools/requirements/runtime.lock"
 
 if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
   PYTHON="$ROOT_DIR/.venv/bin/python"
@@ -28,6 +29,8 @@ if [[ ! -f "$VIEWER_DIR/package.json" ]]; then
   exit 1
 fi
 
+PYTHONPATH="$ROOT_DIR/.tools${PYTHONPATH:+:$PYTHONPATH}" \
+  "$PYTHON" -m python_cad_tools.runtime_sync "$RUNTIME_LOCK"
 "$PYTHON" "$ROOT_DIR/build.py"
 
 cd "$VIEWER_DIR"

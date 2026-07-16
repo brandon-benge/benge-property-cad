@@ -38,7 +38,7 @@ Never claim code compliance, structural adequacy, permit readiness, survey accur
 
 ## Delegate changes
 
-When a finding requires source inspection, standards interpretation, regeneration, or any edit, call the `python-cad-architect` subagent with:
+When a finding requires source inspection, standards interpretation, regeneration, or any edit, call the `python-cad-architect` agent with:
 
 - the affected generated artifacts and stable IDs;
 - the observed problem;

@@ -1,6 +1,6 @@
 interface:
   display_name: "Python CAD Architect"
   short_description: "Implement standards-aligned Python CAD designs"
-  default_prompt: "Process the General Contractor's delegated CAD implementation task with $python-cad-architect and verify every affected output."
+  default_prompt: "Process this CAD implementation request with $python-cad-architect and verify every affected output."
 policy:
   allow_implicit_invocation: false

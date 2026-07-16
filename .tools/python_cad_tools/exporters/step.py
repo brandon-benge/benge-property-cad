@@ -5,10 +5,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from build123d import Compound, export_step, import_step
+from build123d import Compound, import_step
+from build123d.exporters3d import _create_xde
+from OCP.IFSelect import IFSelect_ReturnStatus
 from OCP.Interface import Interface_Static
-from OCP.STEPCAFControl import STEPCAFControl_Controller
-from OCP.STEPControl import STEPControl_Controller
+from OCP.Message import Message, Message_Gravity
+from OCP.STEPCAFControl import STEPCAFControl_Controller, STEPCAFControl_Writer
+from OCP.STEPControl import STEPControl_Controller, STEPControl_StepModelType
 
 from ..determinism import write_json
 from ..exceptions import ExportError
@@ -30,9 +33,8 @@ class StepExporter:
         # installs defaults and would otherwise reset this value to AP214.
         STEPCAFControl_Controller.Init_s()
         STEPControl_Controller.Init_s()
-        Interface_Static.SetCVal_s("write.step.schema", "AP242DIS")
         compound = Compound(children=[element.geometry for element in elements])
-        export_step(compound, path)
+        _export_ap242(compound, path)
         if not path.exists() or path.stat().st_size == 0:
             raise ExportError("STEP writer produced no artifact")
         reloaded = import_step(path)
@@ -57,6 +59,27 @@ class StepExporter:
             },
         )
         return [path, report]
+
+
+def _export_ap242(compound: Compound, path: Path) -> None:
+    """Write an XDE assembly with OCP's default session so AP242 is honored."""
+    if not Interface_Static.SetCVal_s("write.step.schema", "AP242DIS"):
+        raise ExportError("OCP rejected the AP242 STEP schema setting")
+
+    document = _create_xde(compound, auto_naming=True)
+    messenger = Message.DefaultMessenger_s()
+    for printer in messenger.Printers():
+        printer.SetTraceLevel(Message_Gravity.Message_Fail)
+
+    writer = STEPCAFControl_Writer()
+    writer.SetColorMode(True)
+    writer.SetLayerMode(True)
+    writer.SetNameMode(True)
+    if not writer.Transfer(document, STEPControl_StepModelType.STEPControl_AsIs):
+        raise ExportError("STEP writer could not transfer the XDE assembly")
+    status = writer.Write(str(path))
+    if status != IFSelect_ReturnStatus.IFSelect_RetDone:
+        raise ExportError(f"STEP writer failed with status {status}")
 
 
 def step_schema(path: Path) -> str:

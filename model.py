@@ -388,6 +388,17 @@ def build_model(context: BuildContext) -> DesignModel:
     ]:
         rail_post(name, post_x, post_y, post_z)
 
+    # Horizontal cylindrical rail connecting LowerFrontLeftPost_Top (Z=1879.6) to UpperPost_R side
+    rail_z = cfg.LOWER_DECK_ELEVATION + rail_height  # 32*INCH + 42*INCH = 74*INCH = 1879.6mm
+    builder.add_cylinder(
+        "railing",
+        "LowerFrontLeftToUpperRRail",
+        (cfg.UPPER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH, rail_z),
+        (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH, rail_z),
+        rail_thickness,
+        cfg.RAILING_COLOR,
+    )
+
     return DesignModel(
         id="functional.benge_complex",
         name=cfg.PROJECT_NAME,

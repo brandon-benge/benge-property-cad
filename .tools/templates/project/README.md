@@ -36,7 +36,7 @@ The managed `viewer/` is a static, read-only Babylon.js review app for generated
 ./start.sh
 ```
 
-The launcher builds the latest CAD artifacts, installs viewer dependencies on first use, prepares the generated model, and starts the local Vite server. Pass additional Vite options directly, such as `./start.sh --host`.
+The launcher synchronizes the project virtual environment with `.tools/requirements/runtime.lock`, builds the latest CAD artifacts, installs viewer dependencies on first use, prepares the generated model, and starts the local Vite server. Pass additional Vite options directly, such as `./start.sh --host`.
 
 Run `npm test && npm run build` for production verification. The managed Pages workflow rebuilds the Python artifacts before deploying the viewer. In GitHub, set **Settings → Pages → Source** to **GitHub Actions**. See `viewer/README.md` for offline behavior and full deployment details.
 

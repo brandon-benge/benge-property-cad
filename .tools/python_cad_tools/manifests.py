@@ -11,7 +11,7 @@ from . import __version__
 from .determinism import semantic_hash, sha256_file, write_json
 from .geometry import bounds
 
-DEPENDENCIES = ("build123d", "cadquery-ocp", "ifcopenshell", "trimesh", "numpy", "ezdxf", "reportlab")
+DEPENDENCIES = ("build123d", "cadquery-ocp-novtk", "ifcopenshell", "trimesh", "numpy", "ezdxf", "reportlab")
 
 
 def design_manifest(model) -> dict:
