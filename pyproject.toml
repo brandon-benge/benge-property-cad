@@ -38,6 +38,7 @@ include = []
 
 [tool.pytest.ini_options]
 addopts = "-q"
+markers = ["e2e: End-to-end tests requiring external services or browsers"]
 
 [tool.mypy]
 python_version = "3.12"
