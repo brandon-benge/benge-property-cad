@@ -404,7 +404,7 @@ def build_model(context: BuildContext) -> DesignModel:
         elements=builder.elements,
         metadata={
             "project": "Benge Property CAD",
-            "source_authority": "https://github.com/brandon-benge/benge_freecad_project",
+            "source_authority": "https://github.com/brandon-benge/benge-property-cad",
             "source_commit": context.source_revision or "unknown",
         },
     )

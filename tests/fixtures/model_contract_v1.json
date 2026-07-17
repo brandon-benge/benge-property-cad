@@ -5,13 +5,13 @@
     "model_id": "benge.property",
     "model_metadata": {
       "project": "Benge Property CAD",
-      "source_authority": "https://github.com/brandon-benge/benge_freecad_project",
+      "source_authority": "https://github.com/brandon-benge/benge-property-cad",
       "source_commit": "a82127eb725f18e69891303138a63804658fc6a6"
     },
     "model_name": "Benge Property",
     "source_sha256": {
-      "config.py": "e1bddf5c8b6fa6db4022a3dc89d3a73f3ca01b2012193e72d52ec71642b9a0bb",
-      "model.py": "aa1f40b92af898f7ce0e417954f713b1a5d3875fc9e1adcecea23491b13f2655"
+      "config.py": "7d6fc172a50ead071dbbbc7a8828a6317006241112e5f223d4ff521823cf9b8d",
+      "model.py": "fc08d947d1f83220b8d395656631d852f113c82a60cfa167ed8763a337bff300"
     }
   },
   "contract": "benge-property-cad-model-contract-v1",

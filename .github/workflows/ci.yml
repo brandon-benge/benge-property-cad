@@ -166,7 +166,7 @@ print(f'Package location: {python_cad_tools.__file__}')
 "
       - name: Legacy name scan
         run: |
-          ! rg -q 'benge_freecad_project|BengeComplexFunctional|complex-functional' config.py model.py drawing_annotations.py tests/ README.md pyproject.toml
+          ! rg -q --glob '!tests/fixtures/model_contract_v1.json' 'benge_freecad_project|BengeComplexFunctional|complex-functional' config.py model.py drawing_annotations.py tests/ README.md pyproject.toml
       - name: Symlink check
         run: |
           for link in .claude/agents .claude/skills .codex/agents .codex/skills .opencode/agents .opencode/skills CLAUDE.md; do

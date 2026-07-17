@@ -1,4 +1,4 @@
-"""Typed translation of benge_freecad_project/config.py at commit 76b8d75."""
+"""Typed translation of benge-property-cad/config.py at commit 76b8d75."""
 
 from python_cad_tools.units import FOOT, INCH, MM
 
