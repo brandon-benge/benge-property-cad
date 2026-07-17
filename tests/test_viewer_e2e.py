@@ -48,20 +48,20 @@ def _read_stdout(proc: subprocess.Popen) -> str:
 
 
 @pytest.fixture(scope="module")
-def prepared_site(copied_project, tmp_path_factory):
-    _build(copied_project)
+def prepared_site(session_project, tmp_path_factory):
+    _build(session_project)
     dest = tmp_path_factory.mktemp("site")
-    site = prepare_site(copied_project, dest)
+    site = prepare_site(session_project, dest)
     return site, dest
 
 
 @pytest.fixture(scope="module")
-def server_process(copied_project, tmp_path_factory):
-    _build(copied_project)
+def server_process(session_project, tmp_path_factory):
+    _build(session_project)
     dest = tmp_path_factory.mktemp("serve-site")
-    prepare_site(copied_project, dest)
+    prepare_site(session_project, dest)
     proc = subprocess.Popen(
-        [sys.executable, "-m", "python_cad_tools.cli", "serve", str(dest), "--port", "0"],
+        [sys.executable, "-m", "python_cad_tools.cli", "serve", "--project-root", str(session_project), "--port", "0"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -145,39 +145,39 @@ def test_prepare_site_base_path_benge_property_cad(copied_project, tmp_path) -> 
 
 def test_healthz_endpoint(server_process) -> None:
     proc, url = server_process
-    resp = requests.get(f"{url}/healthz", timeout=10)
+    resp = requests.get(f"{url}healthz", timeout=10)
     assert resp.status_code == 200
     data = resp.json()
-    assert "version" in data
+    assert "tool_version" in data
     assert "design_build_hash" in data
     assert len(data["design_build_hash"]) == 64
 
 
 def test_index_html(server_process) -> None:
     proc, url = server_process
-    resp = requests.get(f"{url}/", timeout=10)
+    resp = requests.get(url, timeout=10)
     assert resp.status_code == 200
     assert "text/html" in resp.headers.get("content-type", "")
 
 
 def test_download_manifest(server_process) -> None:
     proc, url = server_process
-    resp = requests.get(f"{url}/download-manifest.json", timeout=10)
+    resp = requests.get(f"{url}download-manifest.json", timeout=10)
     assert resp.status_code == 200
     manifest = resp.json()
-    assert manifest["schema_id"] == "download-manifest-2"
+    assert manifest["schema_id"] == "urn:python-cad-tools:schema:download-manifest:2"
 
 
 def test_glb_artifact(server_process) -> None:
     proc, url = server_process
-    resp = requests.get(f"{url}/artifacts/glb/BengeProperty.glb", timeout=10)
+    resp = requests.get(f"{url}artifacts/glb/BengeProperty.glb", timeout=10)
     assert resp.status_code == 200
     assert resp.headers.get("content-type") in ("model/gltf-binary", "application/octet-stream", "")
 
 
 def test_drawing_svg_artifact(server_process) -> None:
     proc, url = server_process
-    resp = requests.get(f"{url}/artifacts/drawings/svg/BengeProperty_plan.svg", timeout=10)
+    resp = requests.get(f"{url}artifacts/drawings/svg/BengeProperty_plan.svg", timeout=10)
     assert resp.status_code == 200
     assert "image/svg+xml" in resp.headers.get("content-type", "")
 
