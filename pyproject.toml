@@ -7,7 +7,7 @@ name = "benge-property-cad"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-  "python-cad-tools==0.1.0rc1",
+  "python-cad-tools==0.1.1",
   "build123d>=0.11.1,<0.12",
   "ifcopenshell>=0.8.5,<0.9",
   "trimesh>=4.12,<5",

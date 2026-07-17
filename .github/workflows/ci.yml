@@ -28,19 +28,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Select native lock
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Regenerate native dev lock
         id: lock
         shell: python
         run: |
-          import os, sys, platform
+          import os, sys, platform, subprocess
           os_name = {"Linux": "ubuntu", "Darwin": "macos"}[platform.system()]
           arch = platform.machine()
           py = sys.version_info
           lock = f"dev-{os_name}-{arch}-py{py.major}{py.minor}.lock"
           lock_path = f"requirements/locks/{lock}"
-          if not os.path.exists(lock_path):
-            print(f"Lock {lock_path} is PENDING — native generation required")
-            sys.exit(1)
+          os.makedirs("requirements/locks", exist_ok=True)
+          subprocess.run(
+              [
+                  "pip-compile", "--extra=dev", "--generate-hashes",
+                  "--output-file", lock_path, "pyproject.toml",
+              ],
+              check=True, capture_output=True, text=True,
+          )
           print(f"lock_path={lock_path}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
       - name: Install from lock
         run: |
@@ -48,6 +55,11 @@ jobs:
           pip check
       - name: Record lock SHA-256
         run: shasum -a 256 ${{ steps.lock.outputs.lock_path }}
+      - name: Upload regenerated dev lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-lock-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ${{ steps.lock.outputs.lock_path }}
 
   static-analysis:
     runs-on: ubuntu-24.04
@@ -56,6 +68,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        run: |
+          pip-compile --extra=dev --generate-hashes \
+            --output-file=requirements/locks/dev-ubuntu-x86_64-py313.lock \
+            pyproject.toml
       - name: Install dev lock
         run: |
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
@@ -74,6 +93,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        run: |
+          pip-compile --extra=dev --generate-hashes \
+            --output-file=requirements/locks/dev-ubuntu-x86_64-py313.lock \
+            pyproject.toml
       - name: Install dev lock
         run: |
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
@@ -93,10 +119,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dev lock
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        shell: python
         run: |
-          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
-          pip check
+          import os, sys, platform, subprocess
+          os_name = {"Linux": "ubuntu", "Darwin": "macos"}[platform.system()]
+          arch = platform.machine()
+          py = sys.version_info
+          lock = f"dev-{os_name}-{arch}-py{py.major}{py.minor}.lock"
+          lock_path = f"requirements/locks/{lock}"
+          os.makedirs("requirements/locks", exist_ok=True)
+          subprocess.run(
+              ["pip-compile", "--extra=dev", "--generate-hashes",
+               "--output-file", lock_path, "pyproject.toml"],
+              check=True, capture_output=True, text=True,
+          )
+      - name: Install dev lock
+        shell: python
+        run: |
+          import os, sys, platform
+          os_name = {"Linux": "ubuntu", "Darwin": "macos"}[platform.system()]
+          arch = platform.machine()
+          py = sys.version_info
+          lock = f"dev-{os_name}-{arch}-py{py.major}{py.minor}.lock"
+          lock_path = f"requirements/locks/{lock}"
+          import subprocess
+          subprocess.run(["pip", "install", "--require-hashes", "-r", lock_path], check=True)
+          subprocess.run(["pip", "check"], check=True)
       - name: Validate
         run: python-cad validate --project-root .
       - name: Clean
@@ -115,6 +166,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        run: |
+          pip-compile --extra=dev --generate-hashes \
+            --output-file=requirements/locks/dev-ubuntu-x86_64-py313.lock \
+            pyproject.toml
       - name: Install dev lock
         run: |
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
@@ -129,6 +187,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        run: |
+          pip-compile --extra=dev --generate-hashes \
+            --output-file=requirements/locks/dev-ubuntu-x86_64-py313.lock \
+            pyproject.toml
       - name: Install dev lock
         run: |
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
@@ -147,6 +212,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Generate dev lock
+        run: |
+          pip-compile --extra=dev --generate-hashes \
+            --output-file=requirements/locks/dev-ubuntu-x86_64-py313.lock \
+            pyproject.toml
       - name: Install dev lock
         run: |
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
@@ -157,7 +229,7 @@ jobs:
 import importlib.metadata
 ver = importlib.metadata.version('python-cad-tools')
 print(f'python-cad-tools version: {ver}')
-assert ver == '0.1.0rc1', f'Expected 0.1.0rc1, got {ver}'
+assert ver == '0.1.1', f'Expected 0.1.1, got {ver}'
 "
           python -c "
 import python_cad_tools
@@ -202,7 +274,7 @@ print(f'Package location: {python_cad_tools.__file__}')
           {
             "plan_contract": "repo-split-v1",
             "design_revision": "${{ github.sha }}",
-            "python_cad_tools_version": "0.1.0rc1",
+            "python_cad_tools_version": "0.1.1",
             "workflow_run_id": "${{ github.run_id }}",
             "status": "completed",
             "date": "${{ github.event.repository.updated_at }}"
