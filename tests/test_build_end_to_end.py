@@ -116,7 +116,9 @@ def test_build_full_default_formats(built_output) -> None:
 def _cli(*args: str, cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["python-cad", *args],
-        cwd=cwd, capture_output=True, text=True,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -288,16 +290,24 @@ def test_two_clean_builds_identical(copied_project) -> None:
     bm2 = _load_json(output2 / "manifests" / "build-manifest.json")
     assert bm1["design_semantic_hash"] == bm2["design_semantic_hash"]
     known_non_deterministic = {
-        "run-metadata.json", "build-manifest.json", "BengeProperty.step",
+        "run-metadata.json",
+        "build-manifest.json",
+        "BengeProperty.step",
     }
-    bm1_stable_excluding_step = semantic_hash([
-        e for e in bm1["artifacts"]
-        if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
-    ])
-    bm2_stable_excluding_step = semantic_hash([
-        e for e in bm2["artifacts"]
-        if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
-    ])
+    bm1_stable_excluding_step = semantic_hash(
+        [
+            e
+            for e in bm1["artifacts"]
+            if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
+        ]
+    )
+    bm2_stable_excluding_step = semantic_hash(
+        [
+            e
+            for e in bm2["artifacts"]
+            if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
+        ]
+    )
     assert bm1_stable_excluding_step == bm2_stable_excluding_step, (
         "Stable artifact hash mismatch excluding known non-deterministic files"
     )
@@ -308,9 +318,7 @@ def test_two_clean_builds_identical(copied_project) -> None:
         entry2 = arts2[path_key]
         if any(entry1["path"].endswith(name) for name in known_non_deterministic):
             continue
-        assert entry1["sha256"] == entry2["sha256"], (
-            f"SHA-256 mismatch for {path_key} between builds"
-        )
+        assert entry1["sha256"] == entry2["sha256"], f"SHA-256 mismatch for {path_key} between builds"
 
 
 def test_deterministic_nonvolatile_bytes(copied_project) -> None:

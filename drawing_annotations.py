@@ -24,11 +24,12 @@ PROVIDER_ID = "benge.property.annotations"
 
 
 def _format_opening(value_mm: float) -> str:
-    return f'{format_feet_inches(value_mm)} ({round(value_mm):,}mm)'
+    return f"{format_feet_inches(value_mm)} ({round(value_mm):,}mm)"
 
 
 def _find_sheet(
-    context: DrawingContext, sheet_id: str,
+    context: DrawingContext,
+    sheet_id: str,
 ) -> tuple[float, float, float, float]:
     for sheet in context.sheets:
         if sheet.sheet_id == sheet_id:

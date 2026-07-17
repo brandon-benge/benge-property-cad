@@ -16,11 +16,24 @@ def repo_root() -> Path:
 
 def _copy_project(src: Path, dest: Path) -> None:
     ignores = {
-        "generated", ".venv", ".git", "__pycache__",
-        ".pytest_cache", ".ruff_cache", ".mypy_cache",
-        ".mypy", ".back_agents", ".back_opencode",
-        "node_modules", ".tools", "viewer", "backup",
-        ".claude", ".codex", ".github", "site",
+        "generated",
+        ".venv",
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".mypy",
+        ".back_agents",
+        ".back_opencode",
+        "node_modules",
+        ".tools",
+        "viewer",
+        "backup",
+        ".claude",
+        ".codex",
+        ".github",
+        "site",
     }
     dest.mkdir(parents=True, exist_ok=True)
     for item in src.iterdir():
@@ -28,8 +41,7 @@ def _copy_project(src: Path, dest: Path) -> None:
         if name in ignores or name.startswith("."):
             continue
         if item.is_dir():
-            shutil.copytree(item, dest / name, symlinks=False,
-                          ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(item, dest / name, symlinks=False, ignore=shutil.ignore_patterns("__pycache__"))
         elif item.is_file():
             shutil.copy2(item, dest / name)
 
@@ -81,9 +93,7 @@ def project_import(copied_project: Path) -> None:
     sys.path.insert(0, str(copied_project))
     prefixes = ("config.", "model.", "drawing_annotations.")
     for mod in list(sys.modules):
-        if mod in ("config", "model", "drawing_annotations") or any(
-            mod.startswith(p) for p in prefixes
-        ):
+        if mod in ("config", "model", "drawing_annotations") or any(mod.startswith(p) for p in prefixes):
             del sys.modules[mod]
     try:
         yield

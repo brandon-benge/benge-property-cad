@@ -62,7 +62,9 @@ def server_process(copied_project, tmp_path_factory):
     prepare_site(copied_project, dest)
     proc = subprocess.Popen(
         [sys.executable, "-m", "python_cad_tools.cli", "serve", str(dest), "--port", "0"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     url = None
     for line in iter(proc.stdout.readline, ""):
@@ -99,9 +101,7 @@ def test_prepare_site_design_build_hash(copied_project, tmp_path) -> None:
     _build(copied_project)
     dest = tmp_path / "site"
     site = prepare_site(copied_project, dest)
-    build_manifest = json.loads(
-        (copied_project / "generated" / "manifests" / "build-manifest.json").read_text()
-    )
+    build_manifest = json.loads((copied_project / "generated" / "manifests" / "build-manifest.json").read_text())
     assert site.design_build_hash == build_manifest["stable_artifact_set_hash"]
 
 
@@ -187,6 +187,7 @@ def test_drawing_svg_artifact(server_process) -> None:
 playwright_available = False
 try:
     import playwright  # noqa: F401
+
     playwright_available = True
 except ImportError:
     pass

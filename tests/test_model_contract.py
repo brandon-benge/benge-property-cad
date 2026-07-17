@@ -87,8 +87,7 @@ def test_model_all_ids_in_golden(copied_project) -> None:
     model = _build_model(copied_project)
     model_ids = {element.id for element in model.walk()}
     assert model_ids == golden_ids, (
-        f"Model has {len(model_ids - golden_ids)} extra and "
-        f"{len(golden_ids - model_ids)} missing IDs"
+        f"Model has {len(model_ids - golden_ids)} extra and {len(golden_ids - model_ids)} missing IDs"
     )
 
 
@@ -121,8 +120,7 @@ def test_model_bounds_match_golden(copied_project) -> None:
     model = _build_model(copied_project)
     all_bounds = [_bounds(element) for element in model.walk()]
     model_bounds = [
-        min(b[index] for b in all_bounds) if index < 3 else max(b[index] for b in all_bounds)
-        for index in range(6)
+        min(b[index] for b in all_bounds) if index < 3 else max(b[index] for b in all_bounds) for index in range(6)
     ]
     for i in range(6):
         assert abs(model_bounds[i] - golden_bounds[i]) < 0.1, (
@@ -164,7 +162,18 @@ def test_model_categories_consistent(copied_project) -> None:
     model = _build_model(copied_project)
     categories = {element.category for element in model.walk()}
     assert categories == {
-        "deck-board", "deck-framing", "feature", "fireplace", "house",
-        "outdoor-kitchen", "pool", "railing", "roof", "roof-framing",
-        "site", "skirting", "stair", "structure",
+        "deck-board",
+        "deck-framing",
+        "feature",
+        "fireplace",
+        "house",
+        "outdoor-kitchen",
+        "pool",
+        "railing",
+        "roof",
+        "roof-framing",
+        "site",
+        "skirting",
+        "stair",
+        "structure",
     }

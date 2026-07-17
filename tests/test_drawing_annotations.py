@@ -46,6 +46,7 @@ def _load_config(copied_project: Path) -> None:
             del sys.modules[mod]
     try:
         import config as cfg
+
         return cfg
     finally:
         sys.path.remove(str(copied_project))
@@ -74,6 +75,7 @@ def _build_annotations(
             del sys.modules[mod]
     try:
         import drawing_annotations as da
+
         if ctx is None:
             ctx = _context(copied_project)
         return da.build_annotations(ctx)
@@ -229,6 +231,7 @@ def test_no_file_writes_on_call(copied_project, tmp_path) -> None:
             del sys.modules[mod]
     try:
         import drawing_annotations as da
+
         result = da.build_annotations(ctx)
     finally:
         sys.path.remove(str(copied_project))
