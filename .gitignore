@@ -24,3 +24,5 @@ build.py
 start.sh
 site/
 .opencode/node_modules/
+.opencode/commands/
+.opencode/tools/
