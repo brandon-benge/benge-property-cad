@@ -1,34 +1,62 @@
-# Installed Python CAD Project Instructions
+# Benge Property CAD — Agent Governance
 
-## Hard boundary: managed tooling
+## Repository boundary
 
-Do not edit files under `.tools/`, managed root `build.py` or `start.sh`, managed root `opencode.jsonc`, managed `viewer/`, `.github/workflows/pages.yml`, managed `.agents/`, `.opencode/commands/`, `.opencode/tools/`, or tool-registration links. These files come from the upstream template through `.tools/update_tools.py` and must not contain project-specific changes. This applies to every assistant and any subagent it invokes.
+This repository is `benge-property-cad`. It owns property dimensions, materials,
+design parameters, geometry composition, annotation content, Benge-specific
+tests, dependency pin, agent policy, CI, and Pages deployment. It consumes
+`python-cad-tools` as an installed package and must never copy, patch, or vendor
+tooling source.
 
-If a requested change appears to require managed tooling, stop and explain that it belongs upstream. Do not patch managed files as a project workaround.
+## Separation of duties
 
-## Project-owned source
+| Role | Writable scope | Forbidden |
+|------|---------------|-----------|
+| `benge-design-maintainer` | `config.py`, `model.py`, `drawing_annotations.py`, `tests/` | Reads/patches tooling source or site-packages; edits generated artifacts |
+| `benge-project-operations` | `pyproject.toml`, locks, README, AGENTS/agent integration, `.github`, `.gitignore`, migration docs | Changes CAD geometry/IDs or tooling implementation |
+| `benge-artifact-reviewer` | None — read-only review of generated artifacts | Reads or edits design source; certifies professional compliance |
+| `cad-compatibility-verifier` | None — temporary environments/reports only | Fixes failures or asks user to test |
+| `save` | Already verified diff only | Implements, inspects, tests, or weakens verification |
 
-Project-specific design and workflow work belongs in:
+## Design-agent scope
 
-- `model.py` and optional project component modules;
-- `config.py`;
-- `README.md`;
-- project-specific tests or validation extensions;
-- `pyproject.toml` and `.gitignore` when project dependencies or policy change.
+Normal design-agent read scope is intentionally small:
 
-Normal managed updates preserve these project-owned files. An explicit `python .tools/update_tools.py --force` restores the template versions of `README.md`, `pyproject.toml`, `.gitignore`, this `AGENTS.md`, `opencode.jsonc`, and `.agents/`. It never replaces `model.py`, `config.py`, project tests, generated outputs, or unknown files.
+1. Read `AGENTS.md`.
+2. Read only the affected design source file(s) and corresponding test(s).
+3. Read `pyproject.toml` only for package contract/dependency tasks.
+4. Read generated manifests/artifacts only for validation or domain review.
+5. Do not inspect locks, CI, migration documents, or package internals unless the request specifically concerns them.
 
-Python design source is authoritative. Generated files are disposable build products and must never be edited as design inputs.
+## Python design source is authoritative
 
-The Python CAD Architect must not invoke Git directly or indirectly. Only the managed Save agent may persist verified changes, and only through its exclusive `specrepo-autocommit` tool.
+Generated files (`generated/`) are disposable build products and must never be
+edited as design inputs. Keep geometry parametric and use the installed
+`python_cad_tools` API. Preserve stable semantic IDs or document intentional
+migrations. Create geometry and metadata together; assign intentional IFC
+mappings or exclusions.
 
 ## Build and verification
 
-- Keep geometry parametric and use the managed `python_cad_tools` API.
-- Preserve stable semantic IDs or document intentional migrations.
-- Create geometry and metadata together; assign intentional IFC mappings or exclusions.
-- Run `python build.py` after changes and review the regenerated validation reports and manifests.
-- The default build must remain FreeCAD-independent.
-- Use `python build.py --include-fcstd` only when optional compatibility output is explicitly required and FreeCADCmd is installed.
+```text
+ruff check config.py model.py drawing_annotations.py tests/
+ruff format --check config.py model.py drawing_annotations.py tests/
+mypy config.py model.py drawing_annotations.py tests/
+python -m pytest -q
+python-cad validate --project-root .
+python-cad build --project-root .
+python-cad verify --project-root .
+python-cad clean --project-root .
+python-cad prepare-site --project-root . --destination site --base-path /benge-property-cad/
+```
 
-Managed updates replace only manifest-declared paths and preserve protected project source. Use `python .tools/update_tools.py`; installer and updater entry points exist only under `.tools/`. Use `--force` only to restore the upstream safe project defaults; `--force-guidance` and `--force-project-files` are compatibility aliases.
+The default build remains FreeCAD-independent. Use only documented public
+`python_cad_tools` API; do not inspect or patch site-packages during normal
+design work. If a required capability is missing, report it as an upstream
+requirement instead of creating a local infrastructure workaround.
+
+## Git and persistence
+
+Only the `save` agent may persist verified changes, and only through its
+exclusive `specrepo-autocommit` tool. Design agents must not invoke Git directly
+or indirectly, and must not call `specrepo-autocommit`.

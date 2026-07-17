@@ -1,0 +1,233 @@
+name: Benge Property CAD CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_NO_CACHE_DIR: 1
+
+jobs:
+  locked-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        python-version: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Select native lock
+        id: lock
+        shell: python
+        run: |
+          import os, sys, platform
+          os_name = {"Linux": "ubuntu", "Darwin": "macos"}[platform.system()]
+          arch = platform.machine()
+          py = sys.version_info
+          lock = f"dev-{os_name}-{arch}-py{py.major}{py.minor}.lock"
+          lock_path = f"requirements/locks/{lock}"
+          if not os.path.exists(lock_path):
+            print(f"Lock {lock_path} is PENDING — native generation required")
+            sys.exit(1)
+          print(f"lock_path={lock_path}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+      - name: Install from lock
+        run: |
+          pip install --require-hashes -r ${{ steps.lock.outputs.lock_path }}
+          pip check
+      - name: Record lock SHA-256
+        run: shasum -a 256 ${{ steps.lock.outputs.lock_path }}
+
+  static-analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Ruff lint
+        run: ruff check config.py model.py drawing_annotations.py tests/
+      - name: Ruff format
+        run: ruff format --check config.py model.py drawing_annotations.py tests/
+      - name: Mypy
+        run: mypy config.py model.py drawing_annotations.py tests/
+
+  model-annotation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Config contract tests
+        run: python -m pytest -q tests/test_config_contract.py tests/test_model_contract.py tests/test_drawing_annotations.py
+
+  full-build-verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        python-version: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Validate
+        run: python-cad validate --project-root .
+      - name: Clean
+        run: python-cad clean --project-root .
+      - name: Build all formats
+        run: python-cad build --project-root .
+      - name: Verify
+        run: python-cad verify --project-root .
+      - name: Full build tests
+        run: python -m pytest -q tests/test_build_end_to_end.py
+
+  determinism-recovery:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Determinism and recovery tests
+        run: python -m pytest -q tests/test_build_end_to_end.py::test_two_clean_builds_identical tests/test_build_end_to_end.py::test_deterministic_nonvolatile_bytes
+
+  site-browser-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Prepare site
+        run: python-cad clean --project-root . && python-cad build --project-root . && python-cad prepare-site --project-root . --destination site --base-path /benge-property-cad/
+      - name: Site and browser E2E tests
+        run: python -m pytest -q -m e2e tests/test_viewer_e2e.py
+
+  boundary-governance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dev lock
+        run: |
+          pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
+          pip check
+      - name: Dependency boundary check
+        run: |
+          python -c "
+import importlib.metadata
+ver = importlib.metadata.version('python-cad-tools')
+print(f'python-cad-tools version: {ver}')
+assert ver == '0.1.0rc1', f'Expected 0.1.0rc1, got {ver}'
+"
+          python -c "
+import python_cad_tools
+assert 'site-packages' in python_cad_tools.__file__, f'Not installed: {python_cad_tools.__file__}'
+print(f'Package location: {python_cad_tools.__file__}')
+"
+      - name: Legacy name scan
+        run: |
+          ! rg -q 'benge_freecad_project|BengeComplexFunctional|complex-functional' config.py model.py drawing_annotations.py tests/ README.md pyproject.toml
+      - name: Symlink check
+        run: |
+          for link in .claude/agents .claude/skills .codex/agents .codex/skills .opencode/agents .opencode/skills CLAUDE.md; do
+            target="$(readlink "$link")"
+            echo "Checking $link -> $target"
+            test -e "$link" || { echo "BROKEN: $link"; exit 1; }
+            resolved="$(readlink -f "$link")"
+            case "$resolved" in
+              "$PWD"/*) echo "  contained: $resolved" ;;
+              *) echo "  OUTSIDE REPO: $resolved"; exit 1 ;;
+            esac
+          done
+      - name: Ignored output check
+        run: |
+          test -f generated/.gitkeep
+
+  compatibility-report:
+    needs:
+      - locked-install
+      - static-analysis
+      - model-annotation
+      - full-build-verify
+      - determinism-recovery
+      - site-browser-e2e
+      - boundary-governance
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cat <<JSON > compatibility-report.json
+          {
+            "plan_contract": "repo-split-v1",
+            "design_revision": "${{ github.sha }}",
+            "python_cad_tools_version": "0.1.0rc1",
+            "workflow_run_id": "${{ github.run_id }}",
+            "status": "completed",
+            "date": "${{ github.event.repository.updated_at }}"
+          }
+          JSON
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-report
+          path: compatibility-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benge-property-cad-generated
+          path: generated/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-site
+          path: site/
+
+  required-gate:
+    needs:
+      - compatibility-report
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          deps="${{ toJSON(needs) }}"
+          echo "All jobs completed: checking results..."
+        shell: python

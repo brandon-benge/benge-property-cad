@@ -42,7 +42,7 @@ markers = ["e2e: End-to-end tests requiring external services or browsers"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["model.py", "config.py", "drawing_annotations.py"]
+files = ["config.py", "model.py", "drawing_annotations.py", "tests/"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
