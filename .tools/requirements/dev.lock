@@ -1,4 +1,0 @@
--r runtime.lock
-pytest-cov==7.1.0
-ruff==0.14.14
-mypy==1.20.2

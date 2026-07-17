@@ -1,4 +1,0 @@
-interface:
-  display_name: "General Contractor"
-  short_description: "Review generated CAD and construction outputs"
-  default_prompt: "Use $general-contractor to review the generated project outputs and coordinate any required design changes."

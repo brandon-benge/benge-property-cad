@@ -9,3 +9,14 @@ generated/*
 !generated/.gitkeep
 *.FCBak
 *.FCStd
+.tools/
+viewer/
+backup/
+.back_agents/
+.back_opencode/
+back_AGENTS.md
+back_opencode.jsonc
+build.py
+start.sh
+site/
+.opencode/node_modules/
