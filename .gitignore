@@ -16,7 +16,10 @@ backup/
 .back_agents/
 .back_opencode/
 back_AGENTS.md
+.bk_AGENTS.md/
+bk_AGENTS.md
 back_opencode.jsonc
+.python-cad-site-*.lock
 build.py
 start.sh
 site/

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -89,7 +90,7 @@ def design_manifest(built_output: Path) -> dict:
 
 
 @pytest.fixture
-def project_import(copied_project: Path) -> None:
+def project_import(copied_project: Path) -> Generator[None, None, None]:
     sys.path.insert(0, str(copied_project))
     prefixes = ("config.", "model.", "drawing_annotations.")
     for mod in list(sys.modules):

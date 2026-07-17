@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from python_cad_tools.context import BuildContext
+from python_cad_tools.elements import DesignModel
 from python_cad_tools.validation import fatal_issues, validate_model
 
 FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "model_contract_v1.json"
@@ -27,7 +28,7 @@ SELECTED_ELEMENT_IDS = (
 )
 
 
-def _build_model(project_root: Path) -> None:
+def _build_model(project_root: Path) -> DesignModel:
     sys.path.insert(0, str(project_root))
     for mod in list(sys.modules):
         if mod in ("config", "model") or mod.startswith("config.") or mod.startswith("model."):

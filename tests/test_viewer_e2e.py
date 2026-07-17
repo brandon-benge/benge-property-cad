@@ -67,6 +67,7 @@ def server_process(copied_project, tmp_path_factory):
         text=True,
     )
     url = None
+    assert proc.stdout is not None
     for line in iter(proc.stdout.readline, ""):
         line = line.strip()
         if line.startswith("READY"):
@@ -263,6 +264,7 @@ def test_playwright_design_build_hash(server_process) -> None:
         page.goto(url, timeout=30000)
         page.wait_for_selector("[data-testid=model-loaded]", timeout=30000)
         hash_element = page.wait_for_selector("[data-testid=design-build-hash]", timeout=10000)
+        assert hash_element is not None
         hash_text = hash_element.text_content()
         assert hash_text and len(hash_text.strip()) == 64
         browser.close()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import ModuleType
 
 from python_cad_tools.context import DrawingContext
 from python_cad_tools.drawings import (
@@ -39,7 +40,7 @@ def _plan_sheet(
     )
 
 
-def _load_config(copied_project: Path) -> None:
+def _load_config(copied_project: Path) -> ModuleType:
     sys.path.insert(0, str(copied_project))
     for mod in list(sys.modules):
         if mod in ("config", "drawing_annotations"):
