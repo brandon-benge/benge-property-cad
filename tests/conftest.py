@@ -20,7 +20,7 @@ def _copy_project(src: Path, dest: Path) -> None:
         ".pytest_cache", ".ruff_cache", ".mypy_cache",
         ".mypy", ".back_agents", ".back_opencode",
         "node_modules", ".tools", "viewer", "backup",
-        ".claude", ".codex", ".github",
+        ".claude", ".codex", ".github", "site",
     }
     dest.mkdir(parents=True, exist_ok=True)
     for item in src.iterdir():
