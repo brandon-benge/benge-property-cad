@@ -11,7 +11,7 @@
     "model_name": "Benge Property",
     "source_sha256": {
       "config.py": "7d6fc172a50ead071dbbbc7a8828a6317006241112e5f223d4ff521823cf9b8d",
-      "model.py": "fc08d947d1f83220b8d395656631d852f113c82a60cfa167ed8763a337bff300"
+      "model.py": "f705c40b68e88bbf10f334199893b2db1dfa6b49aa0a459a6d6965cb558cd92c"
     }
   },
   "contract": "benge-property-cad-model-contract-v1",
