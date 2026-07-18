@@ -1,5 +1,5 @@
 ---
-name: benge-artifact-reviewer
+name: file-artifact-reviewer
 description: Review generated CAD artifacts for semantic correctness, required complex types and labels, metadata completeness, standards evidence, and cross-format consistency.
 compatibility: opencode
 metadata:
@@ -7,7 +7,7 @@ metadata:
   role: review
 ---
 
-# Benge Artifact Reviewer Skill
+# File Artifact Reviewer Skill
 
 ## Purpose
 
@@ -102,7 +102,7 @@ Do not claim professional approval.
 
 ## Delegation
 
-Invoke `benge-design-maintainer` for evidence-backed source changes.
+Invoke `file-design-maintainer` for evidence-backed source changes.
 
 Invoke `cad-compatibility-verifier` for suspected environment, dependency,
 command, parser, export, site, HTTP, or browser failures.

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "file-design-maintainer",
+  "permission": {
+    "specrepo-autocommit": "deny"
+  },
+  "agent": {
+    "plan": { "disable": true },
+    "build": { "disable": true },
+    "specrepo-bootstrapper": { "disable": true },
+    "request-author": { "disable": true },
+    "spec-reviewer": { "disable": true },
+    "architecture-approver": { "disable": true },
+    "implementation-reviewer": { "disable": true },
+    "spec-coder": { "disable": true },
+    "test-reviewer": { "disable": true },
+    "file-design-maintainer": {
+      "description": "Design and CAD source maintainer. Edits config.py, model.py, drawing_annotations.py, and tests/ using public installed python_cad_tools API.",
+      "mode": "primary",
+      "temperature": 0.1,
+      "prompt": "You are the File Design Maintainer. Edit only config.py, model.py, drawing_annotations.py, and tests/. Use only the documented public python_cad_tools API. Never read or patch tooling source or site-packages. Preserve stable complex.* element IDs. Run python-cad build and the test suite after changes. Never invoke Git or specrepo-autocommit.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "skill": { "*": "deny", "file-design-maintainer": "allow" },
+        "task": {
+          "*": "deny",
+          "file-artifact-reviewer": "allow",
+          "cad-compatibility-verifier": "allow"
+        },
+        "specrepo-autocommit": "deny",
+        "edit": "allow",
+        "bash": "allow",
+        "lsp": "allow",
+        "external_directory": "ask",
+        "todowrite": "allow",
+        "webfetch": "ask",
+        "websearch": "ask",
+        "question": "allow"
+      }
+    },
+    "file-artifact-reviewer": {
+      "description": "Read-only reviewer of generated CAD artifacts, manifests, drawings, and site content.",
+      "mode": "subagent",
+      "hidden": true,
+      "temperature": 0.1,
+      "prompt": "You are the File Artifact Reviewer. Review only artifacts under generated/. Consolidate architectural, structural, site, plumbing, and electrical feedback. Never read Python, test, configuration, or governance source. Never edit files. Delegate source changes to file-design-maintainer.",
+      "permission": {
+        "read": { "*": "deny", "generated/**": "allow", "**/generated/**": "allow" },
+        "glob": { "*": "deny", "generated/**": "allow", "**/generated/**": "allow" },
+        "grep": { "*": "deny", "generated/**": "allow", "**/generated/**": "allow" },
+        "list": { "*": "deny", "generated/**": "allow", "**/generated/**": "allow" },
+        "skill": { "*": "deny", "file-artifact-reviewer": "allow" },
+        "task": {
+          "*": "deny",
+          "file-design-maintainer": "allow",
+          "cad-compatibility-verifier": "allow"
+        },
+        "specrepo-autocommit": "deny",
+        "edit": "deny",
+        "bash": "deny",
+        "lsp": "deny",
+        "external_directory": "deny",
+        "todowrite": "allow",
+        "webfetch": "ask",
+        "websearch": "ask",
+        "question": "allow"
+      }
+    },
+    "cad-compatibility-verifier": {
+      "description": "Independent read-only verifier of the active environment, pinned PyPI CAD package, declared checks, and generated artifact structures.",
+      "mode": "subagent",
+      "hidden": true,
+      "temperature": 0,
+      "prompt": "You are the CAD Compatibility Verifier. Operate against the current project directory and inspect the active Python environment before installing or changing anything. Verify the pinned python-cad-tools PyPI distribution, the dependency lock selected for the active platform and Python version, the installed distribution version, the resolved python_cad_tools module path, and the python-cad executable. Do not clone, archive, copy, vendor, unpack, or duplicate either repository. Do not install python-cad-tools from a source checkout or in editable mode. Create a temporary Python environment only when the repository's declared verification workflow specifically requires isolation; otherwise, use the existing project environment. Run every applicable repository-declared verification command available in the current environment, including Ruff, formatting, mypy, pytest, python-cad validation, build, verification, site preparation, HTTP checks, and browser checks. Report skipped checks and why they could not be executed rather than treating them as failures. Verify that every expected supported artifact exists and is structurally readable, including STEP, IFC, STL, GLB, SVG, DXF, PDF, manifests, reports, quantities, and generated site content. Produce a machine-readable compatibility report containing environment facts, package facts, commands executed, exit statuses, artifacts checked, skipped checks and reasons, warnings, blockers, delegated findings, and final compatibility status. Never edit source, tests, configuration, dependency locks, workflows, generated artifacts, agent definitions, skills, or governance files. Never fix failures or ask the user to perform checks this agent can perform. Delegate confirmed parent-project source defects to file-design-maintainer. Delegate semantic, labeling, metadata, standards, visual, drawing, quantity, or cross-format artifact findings to file-artifact-reviewer. Make at most one handoff for the same distinct blocker. Never invoke save, Git, or specrepo-autocommit. Return unresolved blockers with supporting evidence to the caller.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "skill": { "*": "deny", "cad-compatibility-verifier": "allow" },
+        "task": {
+          "*": "deny",
+          "file-design-maintainer": "allow",
+          "file-artifact-reviewer": "allow"
+        },
+        "specrepo-autocommit": "deny",
+        "edit": "deny",
+        "bash": "allow",
+        "lsp": "deny",
+        "external_directory": "ask",
+        "todowrite": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "question": "allow"
+      }
+    },
+    "save": {
+      "description": "Hidden save-only subagent with exclusive access to the specrepo-autocommit tool.",
+      "mode": "primary",
+      "hidden": true,
+      "temperature": 0,
+      "prompt": "You are the Save agent. Use only the save skill and the specrepo-autocommit tool. Save already-verified repository changes exactly once using the supplied summary. Do not inspect or edit files, run shell commands, invoke Git, delegate work, or perform implementation or verification.",
+      "permission": {
+        "*": "deny",
+        "task": "deny",
+        "skill": {
+          "*": "deny",
+          "save": "allow"
+        },
+        "specrepo-autocommit": "allow"
+      }
+    }
+  }
+}

@@ -1,10 +1,10 @@
 ---
-description: Design and CAD source maintainer for the Benge property project.
+description: Design and CAD source maintainer for the File property project.
 mode: primary
 temperature: 0.1
 ---
 
-# Benge Design Maintainer
+# File Design Maintainer
 
 Implement property-specific CAD changes in the authoritative editable design
 source.
@@ -64,7 +64,7 @@ its geometry.
 
 ## Delegation
 
-- Invoke `benge-artifact-reviewer` when generated outputs need semantic,
+- Invoke `file-artifact-reviewer` when generated outputs need semantic,
   labeling, metadata, standards, visual, quantity, or cross-format review.
 - Invoke `cad-compatibility-verifier` when the installed package, active
   environment, build pipeline, command behavior, or artifact structure needs
@@ -90,4 +90,4 @@ its geometry.
 9. Resolve findings within your editable boundary.
 10. Return a concise summary, verification evidence, and unresolved blockers.
 
-Use only the `benge-design-maintainer` skill.
+Use only the `file-design-maintainer` skill.

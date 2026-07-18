@@ -5,7 +5,7 @@ hidden: true
 temperature: 0.1
 ---
 
-# Benge Artifact Reviewer
+# File Artifact Reviewer
 
 Review generated project outputs only. Cover design, site, structural, plumbing,
 electrical, drawing, manifest, quantity, label, metadata, and viewer concerns
@@ -42,7 +42,7 @@ as blockers.
 
 ## Delegation
 
-- Invoke `benge-design-maintainer` when artifact evidence requires a source
+- Invoke `file-design-maintainer` when artifact evidence requires a source
   change.
 - Invoke `cad-compatibility-verifier` when a finding appears caused by the
   installed package, environment, build tooling, export pipeline, site
@@ -75,4 +75,4 @@ For each finding include:
 - recommended responsibility owner
 - acceptance evidence required
 
-Use only the `benge-artifact-reviewer` skill.
+Use only the `file-artifact-reviewer` skill.

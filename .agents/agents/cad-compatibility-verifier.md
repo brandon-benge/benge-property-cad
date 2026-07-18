@@ -46,7 +46,7 @@ Verify as applicable:
   manifest, report, quantity, and site artifacts
 
 Do not decide whether labels or geometry are semantically correct; delegate that
-judgment to `benge-artifact-reviewer`.
+judgment to `file-artifact-reviewer`.
 
 ## Remote evidence
 
@@ -56,9 +56,9 @@ and distinguish documented behavior from inference.
 
 ## Delegation
 
-- Invoke `benge-design-maintainer` for a confirmed blocker in editable
+- Invoke `file-design-maintainer` for a confirmed blocker in editable
   parent-project source.
-- Invoke `benge-artifact-reviewer` when generated output requires semantic,
+- Invoke `file-artifact-reviewer` when generated output requires semantic,
   labeling, metadata, standards, visual, or cross-format review.
 - Never invoke `save`.
 - Make at most one handoff for the same distinct blocker.

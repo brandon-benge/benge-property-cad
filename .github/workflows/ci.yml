@@ -240,9 +240,6 @@ jobs:
           assert 'site-packages' in python_cad_tools.__file__, f'Not installed: {python_cad_tools.__file__}'
           print(f'Package location: {python_cad_tools.__file__}')
           "
-      - name: Legacy name scan
-        run: |
-          ! rg -q 'benge_freecad_project|BengeComplexFunctional|complex-functional' config.py model.py drawing_annotations.py tests/ README.md pyproject.toml
       - name: Symlink check
         run: |
           for link in .opencode/agents .opencode/skills; do

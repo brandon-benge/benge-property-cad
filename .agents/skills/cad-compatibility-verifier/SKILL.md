@@ -84,7 +84,7 @@ Formats may include STEP, IFC, STL, GLB, SVG, DXF, PDF, manifests, reports,
 quantities, and site content.
 
 Do not judge semantic correctness of labels, types, dimensions, or geometry;
-delegate that to `benge-artifact-reviewer`.
+delegate that to `file-artifact-reviewer`.
 
 ## Package blocker diagnosis
 
@@ -100,10 +100,10 @@ When failure appears package-related:
 
 ## Delegation
 
-Invoke `benge-design-maintainer` for confirmed failures in editable project
+Invoke `file-design-maintainer` for confirmed failures in editable project
 source.
 
-Invoke `benge-artifact-reviewer` when files are technically valid but require
+Invoke `file-artifact-reviewer` when files are technically valid but require
 semantic, label, metadata, standards, visual, or cross-format review.
 
 Never invoke `save`.

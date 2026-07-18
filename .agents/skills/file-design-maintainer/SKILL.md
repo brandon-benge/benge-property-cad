@@ -1,5 +1,5 @@
 ---
-name: benge-design-maintainer
+name: file-design-maintainer
 description: Implement and validate property-specific parametric CAD changes, complex element semantics, labels, metadata, relationships, tests, and supported outputs.
 compatibility: opencode
 metadata:
@@ -7,11 +7,11 @@ metadata:
   role: implementation
 ---
 
-# Benge Design Maintainer Skill
+# File Design Maintainer Skill
 
 ## Purpose
 
-Implement requested changes to the Benge property model while preserving
+Implement requested changes to the property model while preserving
 parametric behavior, deterministic output, stable semantic identity, and
 cross-format consistency.
 
@@ -108,7 +108,7 @@ When required behavior cannot be implemented using the documented public
 
 ## Subagent use
 
-Invoke `benge-artifact-reviewer` for:
+Invoke `file-artifact-reviewer` for:
 
 - semantic review
 - label and metadata review
