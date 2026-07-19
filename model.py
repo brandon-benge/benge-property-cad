@@ -61,6 +61,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float]] = {
     ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
     # Site
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
+    ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     # Skirting
     ("skirting", cfg.SKIRTING_COLOR): ("Pressure-Treated Skirting", 500.0),
     # Stair
@@ -802,6 +803,11 @@ def build_model(context: BuildContext) -> DesignModel:
             center_x = to_mm(start[0]) + dx * ratio
             center_y = to_mm(start[1]) + dy * ratio
             tread_z = to_mm(start_z) - rise * index
+            # Place the tread board so its top (walking surface) is at tread_z,
+            # matching the deck-board convention.  Previously the board bottom
+            # sat at tread_z, which left the riser (spanning tread_z upward)
+            # passing through the tread surface instead of lining up with the
+            # back of the step.
             builder.add_box(
                 "stair",
                 f"{prefix}Tread_{index:02d}",
@@ -810,13 +816,15 @@ def build_model(context: BuildContext) -> DesignModel:
                 cfg.DECK_BOARD_THICKNESS,
                 mm(center_x - to_mm(width) / 2),
                 mm(center_y - to_mm(cfg.TREAD_DEPTH) / 2),
-                mm(tread_z),
+                mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS)),
                 cfg.DECK_COLOR,
             )
 
             # Put the riser/backboard at the rear edge of the tread (toward
             # the upper landing).  It was previously centered on the tread,
-            # which made it visibly pass through the walking surface.
+            # which made it visibly pass through the walking surface.  With the
+            # tread top now at tread_z, the riser sits on top of the tread's
+            # back edge and rises to the landing/previous tread walking surface.
             riser_center_x = center_x - direction_x * riser_setback
             riser_center_y = center_y - direction_y * riser_setback
             builder.add_box(
@@ -980,17 +988,59 @@ def build_model(context: BuildContext) -> DesignModel:
 
     pool_y = -(cfg.LOWER_DECK_DEPTH + 7 * cfg.FOOT + 6 * cfg.FOOT + 15 * cfg.FOOT)
     pool_x = cfg.PATIO_BORDER
+    # 3' tile ground border around the pool.  Modeled as a four-piece ring so
+    # the tile layer sits around the pool footprint instead of a single slab
+    # that covers (overlaps) the pool.  The left/right strips span the full
+    # width including corners; the near/far strips fill the gap between them.
+    tile_border = cfg.PATIO_BORDER
+    tile_thickness = 4 * INCH
+    tile_z = -tile_thickness
+    pool_length = cfg.POOL_LENGTH
+    pool_width = cfg.POOL_WIDTH
     builder.add_box(
         "site",
-        "PoolPaverPatio",
-        cfg.POOL_LENGTH + 2 * cfg.PATIO_BORDER,
-        cfg.POOL_WIDTH + 2 * cfg.PATIO_BORDER,
-        4 * INCH,
-        pool_x - cfg.PATIO_BORDER,
-        pool_y - cfg.PATIO_BORDER,
-        -4 * INCH,
-        cfg.PAVER_COLOR,
+        "PoolTileBorderLeft",
+        tile_border,
+        pool_width + 2 * tile_border,
+        tile_thickness,
+        pool_x - tile_border,
+        pool_y - tile_border,
+        tile_z,
+        cfg.TILE_COLOR,
+    )
+    builder.add_box(
+        "site",
+        "PoolTileBorderRight",
+        tile_border,
+        pool_width + 2 * tile_border,
+        tile_thickness,
+        pool_x + pool_length,
+        pool_y - tile_border,
+        tile_z,
+        cfg.TILE_COLOR,
+    )
+    builder.add_box(
+        "site",
+        "PoolTileBorderNear",
+        pool_length,
+        tile_border,
+        tile_thickness,
+        pool_x,
+        pool_y + pool_width,
+        tile_z,
+        cfg.TILE_COLOR,
         drawing_label=True,
+    )
+    builder.add_box(
+        "site",
+        "PoolTileBorderFar",
+        pool_length,
+        tile_border,
+        tile_thickness,
+        pool_x,
+        pool_y - tile_border,
+        tile_z,
+        cfg.TILE_COLOR,
     )
     pool = sloped_pool(
         cfg.POOL_LENGTH, cfg.POOL_WIDTH, cfg.POOL_SHALLOW_DEPTH, cfg.POOL_DEEP_DEPTH, origin=(pool_x, pool_y, ZERO)
