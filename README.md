@@ -90,3 +90,26 @@ commands. The project uses five roles:
 - **file-artifact-reviewer**: read-only artifact review
 - **cad-compatibility-verifier**: independent verification
 - **save**: exclusive autocommit persistence
+
+### `specrepo-autocommit` configuration
+
+The `save` agent uses LangChain's `specrepo-autocommit` tool, configured via
+`.autoconfig.yaml` in the project root. Before invoking `save`, you **must**
+set the API key:
+
+```bash
+export OPENCODE_API_KEY="sk-..."
+```
+
+Key settings in `.autoconfig.yaml`:
+
+- **Primary model**: `deepseek-v4-flash` via `https://opencode.ai/zen/go/v1`,
+  authenticated with `OPENCODE_API_KEY`
+- **Fallback model**: `deepseek-v4-flash` (same model, no key required)
+- **Conventional commits**: enforced (`type(scope): subject`) with scope
+  inferred from folder name
+- **Auto-push**: pushes after commit and sets upstream for new branches
+- **Quality checks**: up to 2 retries, minimum 3 body lines, boilerplate
+  rejection
+
+See `.autoconfig.yaml` for the full reference.

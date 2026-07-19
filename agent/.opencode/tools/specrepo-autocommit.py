@@ -37,19 +37,18 @@ def fail(message: str, *, config_path: Path | None = None, code: int = 1) -> Non
 
 def get_config_path() -> Path:
     raw_path = os.environ.get("AUTOCOMMIT_PARAMS", "").strip()
-    if not raw_path:
-        fail(
-            "Autocommit blocked: AUTOCOMMIT_PARAMS is not set. Set it to the "
-            "YAML configuration file described at "
-            f"{CONFIGURATION_GUIDE}."
+    if raw_path:
+        config_path = Path(os.path.expandvars(raw_path)).expanduser().resolve()
+        print(f"AUTOCOMMIT_PARAMS is set to: {config_path}", flush=True)
+    else:
+        config_path = (
+            Path(__file__).resolve().parent.parent.parent / ".autoconfig.yaml"
         )
-
-    config_path = Path(os.path.expandvars(raw_path)).expanduser().resolve()
-    print(f"AUTOCOMMIT_PARAMS is set to: {config_path}", flush=True)
+        print(f"AUTOCOMMIT_PARAMS not set, using local fallback: {config_path}", flush=True)
 
     if not config_path.is_file():
         fail(
-            "Autocommit blocked: the AUTOCOMMIT_PARAMS file does not exist or is not a regular file.",
+            "Autocommit blocked: the configuration file does not exist or is not a regular file.",
             config_path=config_path,
         )
 
