@@ -8,19 +8,34 @@ on:
 
 jobs:
   opened-issue:
-    if: github.event_name == 'issues' && github.actor == github.repository_owner
+    name: Handle opened issue
+
+    if: >
+      github.event_name == 'issues' &&
+      github.actor == github.repository_owner
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       issues: write
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
 
-      - uses: anomalyco/opencode/github@latest
+      - name: Configure Git identity
+        shell: bash
+        run: |
+          git config --global user.name "opencode[bot]"
+          git config --global user.email "opencode[bot]@users.noreply.github.com"
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -28,36 +43,59 @@ jobs:
           model: opencode-go/glm-5.2
           use_github_token: true
           prompt: |
-            Work on issue #${{ github.event.issue.number }}.
+            Work on GitHub issue #${{ github.event.issue.number }}.
 
-            Title:
+            Issue title:
             ${{ github.event.issue.title }}
 
-            Description:
+            Issue description:
             ${{ github.event.issue.body }}
 
-            Make the requested changes, validate them, and update the issue.
+            Follow the repository instructions and governance requirements.
+
+            Analyze the issue, make only the changes necessary to resolve it,
+            run the relevant validation and tests, and commit the completed
+            changes.
+
+            Update the issue with a clear summary of:
+            - what changed
+            - what validation was run
+            - whether the issue is fully resolved
+            - any remaining concerns or required follow-up
 
   issue-comment:
-    if: |
+    name: Handle OpenCode comment
+
+    if: >
       github.event_name == 'issue_comment' &&
       github.actor == github.repository_owner &&
       (
         startsWith(github.event.comment.body, '/oc') ||
         startsWith(github.event.comment.body, '/opencode')
       )
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       issues: write
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          fetch-depth: 0
+          persist-credentials: true
 
-      - uses: anomalyco/opencode/github@latest
+      - name: Configure Git identity
+        shell: bash
+        run: |
+          git config --global user.name "opencode[bot]"
+          git config --global user.email "opencode[bot]@users.noreply.github.com"
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
