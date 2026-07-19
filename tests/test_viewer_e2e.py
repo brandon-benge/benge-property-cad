@@ -248,7 +248,7 @@ def test_playwright_units_switch(server_process) -> None:
         page = browser.new_page()
         page.goto(url, timeout=30000)
         page.wait_for_function("!document.getElementById('model-loaded').hidden", timeout=30000)
-        unit_control = page.wait_for_selector("[aria-label=\"Measurement units\"]", timeout=10000)
+        unit_control = page.wait_for_selector('[aria-label="Measurement units"]', timeout=10000)
         assert unit_control is not None
         browser.close()
 
