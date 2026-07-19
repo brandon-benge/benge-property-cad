@@ -17,6 +17,22 @@ python-cad verify
 Edit project dimensions and materials in `config.py` and build shared elements in
 `model.py`. Preserve stable semantic IDs.
 
+## Local viewer
+
+Build the model and start the interactive 3D viewer:
+
+```bash
+# Build generated artifacts (STEP, IFC, GLB, drawings, quantities)
+.venv/bin/python-cad build
+
+# Start the local viewer server
+.venv/bin/python-cad serve --port 8080
+```
+
+Open the URL printed to the terminal (typically `http://127.0.0.1:8080/`). The
+viewer provides orbit controls, element selection, measurement, and download
+links for all generated formats.
+
 ## Installed commands
 
 ```text
