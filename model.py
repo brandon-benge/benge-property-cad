@@ -407,11 +407,14 @@ def build_model(context: BuildContext) -> DesignModel:
     roof_drop = cfg.ROOF_SLOPE_DROP
     roof_front_z = roof_back_z - roof_drop
 
+    # Note: prism_between(width) extends the prism from the start-end axis
+    # in one perpendicular direction (positive x for y-spanning prisms). So
+    # start/end must be at roof_x (left edge), not roof_x + roof_w / 2.
     builder.add_prism(
         "roof",
         "UpperDeckShedRoofCover",
-        (roof_x + roof_w / 2, roof_back_y, roof_back_z),
-        (roof_x + roof_w / 2, roof_front_y, roof_front_z),
+        (roof_x, roof_back_y, roof_back_z),
+        (roof_x, roof_front_y, roof_front_z),
         roof_w,
         cfg.ROOF_THICKNESS,
         (0.18, 0.20, 0.22),
