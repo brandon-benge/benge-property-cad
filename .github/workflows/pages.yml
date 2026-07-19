@@ -1,8 +1,8 @@
-name: Deploy Benge Property CAD viewer
+name: Deploy File Template CAD viewer
 
 on:
   workflow_run:
-    workflows: ["Benge Property CAD CI"]
+    workflows: ["File Template CAD CI"]
     types:
       - completed
     branches: [main]
