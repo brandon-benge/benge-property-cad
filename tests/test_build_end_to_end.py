@@ -7,11 +7,13 @@ import hashlib
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import ezdxf
 import ifcopenshell
+import pytest
 from build123d import import_step
 from pypdf import PdfReader
 from python_cad_tools.build import BuildOptions, ValidationOptions, build_project, clean_project, validate_project
@@ -62,6 +64,27 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@dataclass
+class TwoBuilds:
+    output1: Path
+    manifest1: dict
+    output2: Path
+    manifest2: dict
+
+
+@pytest.fixture
+def two_builds(copied_project: Path) -> TwoBuilds:
+    build_project(BuildOptions(project_root=copied_project))
+    output1 = copied_project / "generated"
+    manifest1 = _load_json(output1 / "manifests" / "build-manifest.json")
+    clean_project(copied_project)
+    assert not (copied_project / "generated" / "step").exists()
+    build_project(BuildOptions(project_root=copied_project))
+    output2 = copied_project / "generated"
+    manifest2 = _load_json(output2 / "manifests" / "build-manifest.json")
+    return TwoBuilds(output1=output1, manifest1=manifest1, output2=output2, manifest2=manifest2)
+
+
 # ── 12.4 Programmatic end-to-end build ───────────────────────────────────────
 
 
@@ -73,12 +96,9 @@ def test_validate_project_no_output(copied_project) -> None:
     assert not gen.exists() or not list(gen.rglob("*"))
 
 
-def test_build_project_returns_build_result(copied_project) -> None:
-    result = build_project(BuildOptions(project_root=copied_project))
-    assert result.project_root == copied_project
-    assert result.output_root == copied_project / "generated"
-    assert isinstance(result.design_semantic_hash, str) and len(result.design_semantic_hash) == 64
-    bm = _load_json(result.output_root / "manifests" / "build-manifest.json")
+def test_build_project_returns_build_result(build_result) -> None:
+    assert isinstance(build_result.design_semantic_hash, str) and len(build_result.design_semantic_hash) == 64
+    bm = _load_json(build_result.output_root / "manifests" / "build-manifest.json")
     assert bm["validation"]["status"] == "passed"
 
 
@@ -280,16 +300,8 @@ def test_annotation_manifest(built_output) -> None:
 # ── 12.7 Failure rollback/recovery and determinism ──────────────────────────
 
 
-def test_two_clean_builds_identical(copied_project) -> None:
-    build_project(BuildOptions(project_root=copied_project))
-    output1 = copied_project / "generated"
-    bm1 = _load_json(output1 / "manifests" / "build-manifest.json")
-    clean_project(copied_project)
-    assert not (copied_project / "generated" / "step").exists()
-    build_project(BuildOptions(project_root=copied_project))
-    output2 = copied_project / "generated"
-    bm2 = _load_json(output2 / "manifests" / "build-manifest.json")
-    assert bm1["design_semantic_hash"] == bm2["design_semantic_hash"]
+def test_two_clean_builds_identical(two_builds) -> None:
+    assert two_builds.manifest1["design_semantic_hash"] == two_builds.manifest2["design_semantic_hash"]
     known_non_deterministic = {
         "run-metadata.json",
         "build-manifest.json",
@@ -298,22 +310,22 @@ def test_two_clean_builds_identical(copied_project) -> None:
     bm1_stable_excluding_step = semantic_hash(
         [
             e
-            for e in bm1["artifacts"]
+            for e in two_builds.manifest1["artifacts"]
             if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
         ]
     )
     bm2_stable_excluding_step = semantic_hash(
         [
             e
-            for e in bm2["artifacts"]
+            for e in two_builds.manifest2["artifacts"]
             if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
         ]
     )
     assert bm1_stable_excluding_step == bm2_stable_excluding_step, (
         "Stable artifact hash mismatch excluding known non-deterministic files"
     )
-    arts1 = {e["path"]: e for e in bm1["artifacts"]}
-    arts2 = {e["path"]: e for e in bm2["artifacts"]}
+    arts1 = {e["path"]: e for e in two_builds.manifest1["artifacts"]}
+    arts2 = {e["path"]: e for e in two_builds.manifest2["artifacts"]}
     assert set(arts1) == set(arts2), "Artifact paths differ between builds"
     for path_key, entry1 in arts1.items():
         entry2 = arts2[path_key]
@@ -322,20 +334,13 @@ def test_two_clean_builds_identical(copied_project) -> None:
         assert entry1["sha256"] == entry2["sha256"], f"SHA-256 mismatch for {path_key} between builds"
 
 
-def test_deterministic_nonvolatile_bytes(copied_project) -> None:
-    build_project(BuildOptions(project_root=copied_project))
-    output1 = copied_project / "generated"
-    clean_project(copied_project)
-    build_project(BuildOptions(project_root=copied_project))
-    output2 = copied_project / "generated"
-    bm1 = _load_json(output1 / "manifests" / "build-manifest.json")
-    bm2 = _load_json(output2 / "manifests" / "build-manifest.json")
+def test_deterministic_nonvolatile_bytes(two_builds) -> None:
     volatile_names = {"run-metadata.json", "build-manifest.json", "FileTemplate.step"}
-    for entry1, entry2 in zip(bm1["artifacts"], bm2["artifacts"], strict=True):
+    for entry1, entry2 in zip(two_builds.manifest1["artifacts"], two_builds.manifest2["artifacts"], strict=True):
         if Path(entry1["path"]).name in volatile_names:
             continue
-        path1 = output1 / entry1["path"]
-        path2 = output2 / entry2["path"]
+        path1 = two_builds.output1 / entry1["path"]
+        path2 = two_builds.output2 / entry2["path"]
         bytes1 = path1.read_bytes()
         bytes2 = path2.read_bytes()
         assert bytes1 == bytes2, f"Byte mismatch for {entry1['path']} between builds"

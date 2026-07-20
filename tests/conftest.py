@@ -7,7 +7,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from python_cad_tools.build import BuildOptions, build_project
+from python_cad_tools.build import BuildOptions, BuildResult, build_project
 
 
 @pytest.fixture(scope="session")
@@ -69,14 +69,18 @@ def session_project(repo_root: Path, tmp_path_factory: pytest.TempPathFactory) -
 
 
 @pytest.fixture(scope="session")
-def built_project(session_project: Path) -> Path:
-    build_project(BuildOptions(project_root=session_project))
-    return session_project
+def build_result(session_project: Path) -> BuildResult:
+    return build_project(BuildOptions(project_root=session_project))
 
 
 @pytest.fixture(scope="session")
-def built_output(built_project: Path) -> Path:
-    return built_project / "generated"
+def built_project(build_result: BuildResult) -> Path:
+    return build_result.project_root
+
+
+@pytest.fixture(scope="session")
+def built_output(build_result: BuildResult) -> Path:
+    return build_result.output_root
 
 
 @pytest.fixture(scope="session")
