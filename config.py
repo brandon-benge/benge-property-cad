@@ -76,6 +76,19 @@ SHED_PAVER_START_Y = SHED_FRONT_Y
 SHED_PAVER_END_Y = 0 * FOOT
 SHED_PAVER_THICKNESS = 4 * INCH
 
+# A single-vehicle connector crosses the evergreen screen at the shed-near
+# (south) end of the pool.  Ten feet is the deliberately tight clear width;
+# it is not intended to become a second driveway field.
+VEHICLE_CONNECTOR_CLEAR_WIDTH = 10 * FOOT
+
+# Black ornamental fence along the right side of ShedAccessPavers when viewed
+# from the house toward the shed.
+SHED_ACCESS_FENCE_HEIGHT = 4 * FOOT
+SHED_ACCESS_FENCE_POST_SIZE = 2 * INCH
+SHED_ACCESS_FENCE_RAIL_SIZE = 1.5 * INCH
+SHED_ACCESS_FENCE_POST_SPACING = 6 * FOOT
+SHED_ACCESS_FENCE_PICKET_SPACING = 12 * INCH
+
 HOT_TUB_WIDTH = 8 * FOOT
 HOT_TUB_DEPTH = 8 * FOOT
 HOT_TUB_ABOVE_DECK = 1 * FOOT
@@ -122,6 +135,7 @@ WATER_COLOR = (0.05, 0.30, 0.65)
 PAVER_COLOR = (0.70, 0.70, 0.68)
 TILE_COLOR = (0.78, 0.80, 0.82)
 GRASS_COLOR = (0.36, 0.55, 0.24)
-SHED_SIDING_COLOR = (0.42, 0.43, 0.39)
+SHED_SIDING_COLOR = HOUSE_COLOR
 SHED_TRIM_COLOR = (0.82, 0.80, 0.72)
 SHED_ROOF_COLOR = (0.12, 0.14, 0.16)
+FENCE_COLOR = (0.03, 0.03, 0.035)

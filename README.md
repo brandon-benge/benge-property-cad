@@ -33,6 +33,22 @@ Open the URL printed to the terminal (typically `http://127.0.0.1:8080/`). The
 viewer provides orbit controls, element selection, measurement, and download
 links for all generated formats.
 
+### Upgrade the local viewer
+
+The viewer is provided by the latest compatible `python-cad-tools` version
+allowed by `pyproject.toml`. Fetch and install it without building the CAD
+model:
+
+```bash
+.venv/bin/pip install --upgrade --no-cache-dir .
+.venv/bin/python-cad --version
+```
+
+`--upgrade` selects the newest compatible release, while `--no-cache-dir`
+prevents reuse of a cached download. This only updates the installed tools; run
+`python-cad build` separately when you want to regenerate the model. Exact,
+reproducible versions remain recorded in the lockfiles described below.
+
 ## Installed commands
 
 ```text
@@ -58,7 +74,8 @@ python -m pytest -q
 
 ## Dependency management
 
-The project pins `python-cad-tools==0.1.0rc1` with four native reproducible locks:
+The project allows `python-cad-tools>=0.1.4,<0.2`; four native reproducible locks
+record the exact resolved package versions and hashes:
 
 | Lock | Cell |
 |------|------|

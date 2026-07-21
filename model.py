@@ -72,6 +72,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
     ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
+    ("site", cfg.FENCE_COLOR): ("Black Powder-Coated Aluminum Fence", 2700.0),
     # Vegetation solids are visual landscaping proxies, not material takeoff
     # solids; an unspecified density prevents fabricated construction mass.
     ("site", TREE_GREEN): ("Evergreen Tree (Conceptual)", None),
@@ -1338,22 +1339,52 @@ def build_model(context: BuildContext) -> DesignModel:
         )
 
     # Grass south of the pool extends to the shed's far Y edge and across to
-    # X=16.667yd.  This absorbs the former lower portion of RightGrassExtension.
+    # X=16.667yd.  A 10ft-wide connector at the shed-near end of the pool is
+    # kept free of turf so a single vehicle can cross the evergreen screen.
     pool_south_far_y = pool_y - tile_border
     pool_south_start_y = cfg.SHED_Y
     pool_south_depth = pool_south_far_y - pool_south_start_y
+    vehicle_connector_end_y = pool_south_far_y
+    vehicle_connector_start_y = vehicle_connector_end_y - cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH
+    vehicle_connector_end_x = pool_x - tile_border
     if to_mm(pool_south_depth) > 0:
         builder.add_box(
             "site",
             "PoolSouthGrass",
-            cfg.POOL_SOUTH_GRASS_MAX_X,
+            cfg.POOL_SOUTH_GRASS_MAX_X - vehicle_connector_end_x,
             pool_south_depth,
             cfg.GRASS_THICKNESS,
-            ZERO,
+            vehicle_connector_end_x,
             pool_south_start_y,
             -cfg.GRASS_THICKNESS,
             cfg.GRASS_COLOR,
         )
+        for name, start_y, depth in (
+            (
+                "PoolSouthGrassWestSouth",
+                pool_south_start_y,
+                vehicle_connector_start_y - pool_south_start_y,
+            ),
+            (
+                "PoolSouthGrassWestNorth",
+                vehicle_connector_end_y,
+                pool_south_far_y - vehicle_connector_end_y,
+            ),
+        ):
+            if to_mm(depth) > 0:
+                builder.add_box(
+                    "site",
+                    name,
+                    vehicle_connector_end_x,
+                    depth,
+                    cfg.GRASS_THICKNESS,
+                    ZERO,
+                    start_y,
+                    -cfg.GRASS_THICKNESS,
+                    cfg.GRASS_COLOR,
+                    parent_id="complex.site.pool_south_grass",
+                    properties={"complex_type": "turf_infill", "assembly_role": "pool_south_grass_infill"},
+                )
 
     # RightGrassExtension occupies only the near/house side of the shared
     # boundary.  It stops exactly where PoolSouthGrass begins at y=-42ft.
@@ -1395,6 +1426,102 @@ def build_model(context: BuildContext) -> DesignModel:
             "surface": "exterior_access_pavers",
         },
     )
+
+    builder.add_box(
+        "site",
+        "VehicleAccessConnector",
+        vehicle_connector_end_x,
+        cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH,
+        cfg.SHED_PAVER_THICKNESS,
+        ZERO,
+        vehicle_connector_start_y,
+        -cfg.SHED_PAVER_THICKNESS,
+        cfg.PAVER_COLOR,
+        drawing_label=True,
+        properties={
+            "complex_type": "vehicle_access_connector",
+            "connection": "shed_access_pavers_to_pool_side_yard",
+            "from_element_id": "complex.site.shed_access_pavers",
+            "to_element_id": "complex.site.pool_tile_border_far_01",
+            "clear_width_mm": to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH),
+            "location_intent": "shed-near_south_end_of_pool",
+            "surface": "exterior_access_pavers",
+        },
+    )
+
+    # Black ornamental fence on the right of the paver drive when looking
+    # from the house toward the shed.  It sits just outside the paver edge so
+    # it does not reduce the existing drive width.
+    fence_parent_id = "complex.site.shed_access_fence"
+    fence_x = cfg.SHED_PAVER_MIN_X - cfg.SHED_ACCESS_FENCE_POST_SIZE
+    fence_depth = cfg.SHED_PAVER_END_Y - cfg.SHED_PAVER_START_Y
+    fence_properties = {
+        "complex_type": "ornamental_access_fence",
+        "side": "right_when_viewed_house_to_shed",
+        "finish": "black_powder_coat",
+        "adjacent_to": "complex.site.shed_access_pavers",
+    }
+    builder.add_box(
+        "site",
+        "ShedAccessFence",
+        cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+        fence_depth,
+        cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+        fence_x,
+        cfg.SHED_PAVER_START_Y,
+        12 * INCH,
+        cfg.FENCE_COLOR,
+        drawing_label=True,
+        properties={**fence_properties, "assembly_role": "lower_rail"},
+    )
+    builder.add_box(
+        "site",
+        "ShedAccessFenceTopRail",
+        cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+        fence_depth,
+        cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+        fence_x,
+        cfg.SHED_PAVER_START_Y,
+        cfg.SHED_ACCESS_FENCE_HEIGHT - 6 * INCH,
+        cfg.FENCE_COLOR,
+        parent_id=fence_parent_id,
+        properties={**fence_properties, "assembly_role": "top_rail"},
+    )
+    fence_post_count = math.ceil(to_mm(fence_depth) / to_mm(cfg.SHED_ACCESS_FENCE_POST_SPACING)) + 1
+    for post_index in range(fence_post_count):
+        post_y = min(
+            cfg.SHED_PAVER_START_Y + post_index * cfg.SHED_ACCESS_FENCE_POST_SPACING,
+            cfg.SHED_PAVER_END_Y - cfg.SHED_ACCESS_FENCE_POST_SIZE,
+        )
+        builder.add_box(
+            "site",
+            f"ShedAccessFencePost_{post_index + 1:02d}",
+            cfg.SHED_ACCESS_FENCE_POST_SIZE,
+            cfg.SHED_ACCESS_FENCE_POST_SIZE,
+            cfg.SHED_ACCESS_FENCE_HEIGHT,
+            fence_x,
+            post_y,
+            ZERO,
+            cfg.FENCE_COLOR,
+            parent_id=fence_parent_id,
+            properties={**fence_properties, "assembly_role": "post"},
+        )
+    fence_picket_count = math.floor(to_mm(fence_depth) / to_mm(cfg.SHED_ACCESS_FENCE_PICKET_SPACING)) + 1
+    for picket_index in range(fence_picket_count):
+        picket_y = cfg.SHED_PAVER_START_Y + picket_index * cfg.SHED_ACCESS_FENCE_PICKET_SPACING
+        builder.add_box(
+            "site",
+            f"ShedAccessFencePicket_{picket_index + 1:03d}",
+            cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+            cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
+            cfg.SHED_ACCESS_FENCE_HEIGHT - 3 * INCH,
+            fence_x,
+            picket_y,
+            ZERO,
+            cfg.FENCE_COLOR,
+            parent_id=fence_parent_id,
+            properties={**fence_properties, "assembly_role": "picket"},
+        )
 
     # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
     # The pool and its tile border occupy x=pool_x-tile_border..lower_deck_right_x
@@ -1559,32 +1686,47 @@ def build_model(context: BuildContext) -> DesignModel:
         properties={**shed_common_properties, "assembly_role": "side_service_door"},
     )
 
-    # Ten evergreen trees along x=0, every 4ft, starting at y=-24ft
+    # Evergreen screen along x=0. Tree_06 is intentionally removed to form the
+    # 10ft vehicle opening beside the pool; the two bordering trees are clipped
+    # in depth at the opening, and Tree_11 extends the screen to the shed.
     _tree_trunk_height = 2 * FOOT
     _tree_trunk_radius = 3 * INCH
-    for tree_index in range(10):
-        tree_y = -(24 * FOOT + tree_index * 4 * FOOT)
+    _tree_layout = (
+        (1, -24 * FOOT, 6 * FOOT),
+        (2, -28 * FOOT, 6 * FOOT),
+        (3, -32 * FOOT, 6 * FOOT),
+        (4, -36 * FOOT, 6 * FOOT),
+        (5, vehicle_connector_end_y + 1.5 * FOOT, 3 * FOOT),
+        # Tree_06 removed for the vehicle opening.
+        (7, vehicle_connector_start_y - 1.5 * FOOT, 3 * FOOT),
+        (8, -58 * FOOT, 6 * FOOT),
+        (9, -62 * FOOT, 6 * FOOT),
+        (10, -66 * FOOT, 6 * FOOT),
+        (11, -70 * FOOT, 6 * FOOT),
+    )
+    for tree_number, tree_y, lower_foliage_depth in _tree_layout:
         tree_z = ZERO
         # Trunk
         builder.add_cylinder(
             "site",
-            f"Tree_{tree_index + 1:02d}Trunk",
+            f"Tree_{tree_number:02d}Trunk",
             (ZERO, tree_y, tree_z),
             (ZERO, tree_y, tree_z + _tree_trunk_height),
             _tree_trunk_radius,
             TREE_BROWN,
         )
         # Foliage: three stacked tiered blocks forming an evergreen silhouette
+        depth_scale = lower_foliage_depth / (6 * FOOT)
         _foliage_layers = [
-            (6.0 * FOOT, 6.0 * FOOT, 2.5 * FOOT, ZERO),
-            (4.0 * FOOT, 4.0 * FOOT, 2.5 * FOOT, 2.5 * FOOT),
-            (2.5 * FOOT, 2.5 * FOOT, 3.0 * FOOT, 5.0 * FOOT),
+            (6.0 * FOOT, lower_foliage_depth, 2.5 * FOOT, ZERO),
+            (4.0 * FOOT, 4.0 * FOOT * depth_scale, 2.5 * FOOT, 2.5 * FOOT),
+            (2.5 * FOOT, 2.5 * FOOT * depth_scale, 3.0 * FOOT, 5.0 * FOOT),
         ]
         for layer_idx, (width, depth, height, z_offset) in enumerate(_foliage_layers):
-            is_drawing_label = tree_index == 0 and layer_idx == 2  # label on top tier of first tree
+            is_drawing_label = tree_number == 1 and layer_idx == 2  # label on top tier of first tree
             builder.add_box(
                 "site",
-                f"Tree_{tree_index + 1:02d}Foliage_{layer_idx + 1}",
+                f"Tree_{tree_number:02d}Foliage_{layer_idx + 1}",
                 width,
                 depth,
                 height,

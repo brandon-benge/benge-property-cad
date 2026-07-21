@@ -121,10 +121,13 @@ def test_pool_tile_material_registered(design_manifest: dict) -> None:
     assert len(tile_elements) == 50
     for element in tile_elements:
         assert element["material_id"] == "material.complex.site.199_204_209"
-    # The removed pool patio does not return; the only paver-colored site
-    # element is the requested shed access field.
+    # The removed pool patio does not return; paver material is limited to the
+    # shed drive and its deliberately narrow vehicle connector.
     paver_elements = [e for e in design_manifest["elements"] if e["material_id"] == "material.complex.site.178_178_173"]
-    assert [e["id"] for e in paver_elements] == ["complex.site.shed_access_pavers"]
+    assert {e["id"] for e in paver_elements} == {
+        "complex.site.shed_access_pavers",
+        "complex.site.vehicle_access_connector",
+    }
 
 
 # ── Pool deep end on the reverse (left) side ─────────────────────────────────
@@ -275,6 +278,19 @@ def test_shed_has_gable_roof_and_side_door(copied_project: Path, design_manifest
         assert (wall[4] - wall[1]) == pytest.approx(2 * to_mm(10 * FOOT))
 
 
+def test_shed_siding_matches_house_blue_gray(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    assert cfg.SHED_SIDING_COLOR == cfg.HOUSE_COLOR
+    house = _element_by_id(design_manifest, "complex.house.house_mass")
+    for wall_id in (
+        "complex.shed.shed_left_wall",
+        "complex.shed.shed_right_wall",
+        "complex.shed.shed_rear_wall",
+        "complex.shed.shed_front_wall",
+    ):
+        assert _element_by_id(design_manifest, wall_id)["material_id"] == house["material_id"].replace("house", "shed")
+
+
 def test_no_added_rear_screen_trees_remain(design_manifest: dict) -> None:
     ids = {e["id"] for e in design_manifest["elements"]}
     assert not any(element_id.startswith("complex.site.rear_screen_tree_") for element_id in ids)
@@ -313,6 +329,53 @@ def test_shed_access_pavers_span_requested_axes(copied_project: Path, design_man
     assert pavers[1] == pytest.approx(-to_mm(24 * 3 * FOOT))
     assert pavers[4] == pytest.approx(0.0)
     assert (pavers[5] - pavers[2]) == pytest.approx(to_mm(cfg.SHED_PAVER_THICKNESS))
+
+
+def test_vehicle_connector_is_tight_ten_foot_route_at_shed_near_pool_end(
+    copied_project: Path, design_manifest: dict
+) -> None:
+    cfg = _load_config(copied_project)
+    connector = _bounds(design_manifest, "complex.site.vehicle_access_connector")
+    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
+    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
+
+    assert (connector[4] - connector[1]) == pytest.approx(to_mm(10 * FOOT))
+    assert (connector[4] - connector[1]) == pytest.approx(to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH))
+    assert connector[0] == pytest.approx(pavers[3])
+    assert connector[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
+    assert connector[4] == pytest.approx(pool[1] - to_mm(cfg.PATIO_BORDER))
+
+
+def test_one_tree_removed_for_clear_vehicle_gap_and_screen_reaches_shed(design_manifest: dict) -> None:
+    ids = {e["id"] for e in design_manifest["elements"]}
+    assert "complex.site.tree_06_trunk" not in ids
+    assert not any(element_id.startswith("complex.site.tree_06_foliage_") for element_id in ids)
+
+    connector = _bounds(design_manifest, "complex.site.vehicle_access_connector")
+    north_tree = _bounds(design_manifest, "complex.site.tree_05_foliage_1")
+    south_tree = _bounds(design_manifest, "complex.site.tree_07_foliage_1")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+    last_tree = _bounds(design_manifest, "complex.site.tree_11_foliage_1")
+    assert north_tree[1] == pytest.approx(connector[4])
+    assert south_tree[4] == pytest.approx(connector[1])
+    assert last_tree[1] <= shed[4]
+
+
+def test_black_fence_runs_right_side_of_shed_access_pavers(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    fence = _bounds(design_manifest, "complex.site.shed_access_fence")
+    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
+    fence_element = _element_by_id(design_manifest, "complex.site.shed_access_fence")
+
+    assert fence[3] <= pavers[0]
+    assert fence[1] == pytest.approx(pavers[1])
+    assert fence[4] == pytest.approx(pavers[4])
+    assert fence_element["material_id"] == "material.complex.site.8_8_9"
+    posts = [e for e in design_manifest["elements"] if e["id"].startswith("complex.site.shed_access_fence_post_")]
+    assert posts
+    assert max(_bounds(design_manifest, e["id"])[5] for e in posts) == pytest.approx(
+        to_mm(cfg.SHED_ACCESS_FENCE_HEIGHT)
+    )
 
 
 # ── Fireplace 3' wide (x) × 8' deep (y) ─────────────────────────────────────
