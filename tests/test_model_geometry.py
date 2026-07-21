@@ -121,8 +121,10 @@ def test_pool_tile_material_registered(design_manifest: dict) -> None:
     assert len(tile_elements) == 50
     for element in tile_elements:
         assert element["material_id"] == "material.complex.site.199_204_209"
-    # No paver-colored site element remains.
-    assert not any(e["material_id"] == "material.complex.site.178_178_173" for e in design_manifest["elements"])
+    # The removed pool patio does not return; the only paver-colored site
+    # element is the requested shed access field.
+    paver_elements = [e for e in design_manifest["elements"] if e["material_id"] == "material.complex.site.178_178_173"]
+    assert [e["id"] for e in paver_elements] == ["complex.site.shed_access_pavers"]
 
 
 # ── Pool deep end on the reverse (left) side ─────────────────────────────────
@@ -229,6 +231,88 @@ def test_grass_south_of_pool_exists(design_manifest: dict) -> None:
 def test_right_grass_extension_exists(design_manifest: dict) -> None:
     ids = {e["id"] for e in design_manifest["elements"]}
     assert "complex.site.right_grass_extension" in ids, "Missing RightGrassExtension element"
+
+
+# ── Photo 1 shed and evergreen screening ────────────────────────────────────
+
+
+def test_shed_is_entirely_negative_x_and_front_starts_at_negative_24_yards(
+    copied_project: Path, design_manifest: dict
+) -> None:
+    cfg = _load_config(copied_project)
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+
+    assert shed[3] < 0.0
+    assert shed[0] == pytest.approx(to_mm(cfg.SHED_X))
+    assert shed[4] == pytest.approx(-to_mm(24 * 3 * FOOT))
+    assert shed[1] == pytest.approx(-to_mm(24 * 3 * FOOT) - to_mm(cfg.SHED_DEPTH))
+    assert (shed[3] - shed[0]) == pytest.approx(to_mm(cfg.SHED_WIDTH))
+    assert (shed[4] - shed[1]) == pytest.approx(to_mm(cfg.SHED_DEPTH))
+
+    front_door = _bounds(design_manifest, "complex.shed.shed_front_double_door")
+    assert front_door[1] >= shed[4] - 1e-6
+
+
+def test_shed_has_gable_roof_and_side_door(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    left_roof = _bounds(design_manifest, "complex.shed.shed_roof_left_slope")
+    right_roof = _bounds(design_manifest, "complex.shed.shed_roof_right_slope")
+    expected_ridge = to_mm(cfg.SHED_WALL_HEIGHT + cfg.SHED_ROOF_RISE)
+    assert left_roof[5] == pytest.approx(expected_ridge, abs=to_mm(cfg.SHED_ROOF_THICKNESS))
+    assert right_roof[5] == pytest.approx(expected_ridge, abs=to_mm(cfg.SHED_ROOF_THICKNESS))
+    side_door = _bounds(design_manifest, "complex.shed.shed_side_service_door")
+    right_wall = _bounds(design_manifest, "complex.shed.shed_right_wall")
+    assert side_door[0] == pytest.approx(right_wall[3])
+    assert side_door[0] > right_wall[0]
+
+    shed_parts = [e for e in design_manifest["elements"] if e["id"].startswith("complex.shed.shed_")]
+    assert shed_parts
+    assert all(e["parent_id"] == "complex.shed.yard_storage_shed" for e in shed_parts)
+
+    for wall_id in ("complex.shed.shed_left_wall", "complex.shed.shed_right_wall"):
+        wall = _bounds(design_manifest, wall_id)
+        assert (wall[4] - wall[1]) == pytest.approx(to_mm(cfg.SHED_DEPTH))
+        assert (wall[4] - wall[1]) == pytest.approx(2 * to_mm(10 * FOOT))
+
+
+def test_no_added_rear_screen_trees_remain(design_manifest: dict) -> None:
+    ids = {e["id"] for e in design_manifest["elements"]}
+    assert not any(element_id.startswith("complex.site.rear_screen_tree_") for element_id in ids)
+
+
+def test_no_added_shed_screen_trees_remain(design_manifest: dict) -> None:
+    ids = {e["id"] for e in design_manifest["elements"]}
+    assert not any(element_id.startswith("complex.site.shed_front_screen_tree_") for element_id in ids)
+    assert not any(element_id.startswith("complex.site.shed_right_screen_tree_") for element_id in ids)
+
+
+def test_pool_south_grass_extends_to_shed_and_requested_x(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    grass = _bounds(design_manifest, "complex.site.pool_south_grass")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+    assert grass[1] == pytest.approx(shed[1])
+    assert grass[3] == pytest.approx(to_mm(cfg.POOL_SOUTH_GRASS_MAX_X))
+    assert grass[3] == pytest.approx(to_mm(16.667 * 3 * FOOT))
+
+
+def test_right_grass_extension_stops_at_pool_south_grass(design_manifest: dict) -> None:
+    south = _bounds(design_manifest, "complex.site.pool_south_grass")
+    right = _bounds(design_manifest, "complex.site.right_grass_extension")
+    assert right[1] == pytest.approx(south[4])
+    assert right[3] == pytest.approx(south[3])
+
+
+def test_shed_access_pavers_span_requested_axes(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+
+    assert pavers[0] == pytest.approx(-to_mm(17.117 * FOOT))
+    assert pavers[3] == pytest.approx(0.0)
+    assert pavers[1] == pytest.approx(shed[4])
+    assert pavers[1] == pytest.approx(-to_mm(24 * 3 * FOOT))
+    assert pavers[4] == pytest.approx(0.0)
+    assert (pavers[5] - pavers[2]) == pytest.approx(to_mm(cfg.SHED_PAVER_THICKNESS))
 
 
 # ── Fireplace 3' wide (x) × 8' deep (y) ─────────────────────────────────────

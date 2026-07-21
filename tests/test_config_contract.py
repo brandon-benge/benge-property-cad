@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import sys
 
-from python_cad_tools.units import to_mm
+import pytest
+from python_cad_tools.units import FOOT, to_mm
 
 
 def test_config_dimensions_positive(copied_project) -> None:
@@ -86,6 +87,28 @@ def test_pool_dimensions(copied_project) -> None:
     assert to_mm(cfg.POOL_DEEP_DEPTH) > to_mm(cfg.POOL_SHALLOW_DEPTH)
     assert to_mm(cfg.PATIO_BORDER) > 0
     assert to_mm(cfg.DECK_TO_POOL_CLEARANCE) > 0
+
+
+def test_photo_matched_yard_parameters(copied_project) -> None:
+    sys.path.insert(0, str(copied_project))
+    try:
+        import config as cfg
+    finally:
+        sys.path.remove(str(copied_project))
+
+    assert to_mm(cfg.SHED_DEPTH) == 2 * to_mm(10 * FOOT)
+    assert to_mm(cfg.SHED_X + cfg.SHED_WIDTH) < 0
+    assert to_mm(cfg.SHED_FRONT_Y) == -to_mm(24 * 3 * FOOT)
+    assert to_mm(cfg.SHED_Y) == to_mm(cfg.SHED_FRONT_Y - cfg.SHED_DEPTH)
+    assert to_mm(cfg.SHED_WALL_HEIGHT) > to_mm(cfg.SHED_ROOF_RISE)
+    assert to_mm(cfg.SHED_FRONT_DOOR_WIDTH) < to_mm(cfg.SHED_WIDTH)
+    assert to_mm(cfg.SHED_FRONT_DOOR_HEIGHT) < to_mm(cfg.SHED_WALL_HEIGHT)
+    assert to_mm(cfg.POOL_SOUTH_GRASS_MAX_X) == pytest.approx(to_mm(16.667 * 3 * FOOT))
+    assert to_mm(cfg.SHED_PAVER_MIN_X) == pytest.approx(-to_mm(17.117 * FOOT))
+    assert to_mm(cfg.SHED_PAVER_MAX_X) == 0
+    assert to_mm(cfg.SHED_PAVER_START_Y) == -to_mm(24 * 3 * FOOT)
+    assert to_mm(cfg.SHED_PAVER_END_Y) == 0
+    assert to_mm(cfg.SHED_PAVER_THICKNESS) > 0
 
 
 def test_hot_tub_and_fireplace(copied_project) -> None:

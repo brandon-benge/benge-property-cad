@@ -31,7 +31,7 @@ def _slug(value: str) -> str:
 # Human-readable material names and densities (kg/m³) keyed by (category, color_rgb).
 # Each entry: human_readable_name, density_kg_m3
 # Material IDs (generated from category + rounded RGB) remain stable for backward compatibility.
-MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float]] = {
+MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     # Deck
     ("deck-board", cfg.DECK_COLOR): ("Composite Decking", 700.0),
     ("deck-framing", cfg.SKIRTING_COLOR): ("Pressure-Treated Lumber", 500.0),
@@ -72,8 +72,15 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float]] = {
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
     ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
-    ("site", TREE_GREEN): ("Evergreen Tree", 500.0),
-    ("site", TREE_BROWN): ("Tree Trunk", 600.0),
+    # Vegetation solids are visual landscaping proxies, not material takeoff
+    # solids; an unspecified density prevents fabricated construction mass.
+    ("site", TREE_GREEN): ("Evergreen Tree (Conceptual)", None),
+    ("site", TREE_BROWN): ("Tree Trunk (Conceptual)", None),
+    # Yard storage shed
+    ("shed", cfg.SHED_SIDING_COLOR): ("Painted Wood Siding", 550.0),
+    ("shed", cfg.SHED_TRIM_COLOR): ("Painted Wood Trim", 550.0),
+    ("shed", cfg.SHED_ROOF_COLOR): ("Asphalt Shingle Roof", 50.0),
+    ("shed", (0.15, 0.15, 0.15)): ("Concrete Shed Slab", 2400.0),
     # Skirting
     ("skirting", cfg.SKIRTING_COLOR): ("Pressure-Treated Skirting", 500.0),
     ("skirting", (0.95, 0.85, 0.10)): ("LED Strip Light", 100.0),
@@ -118,6 +125,9 @@ class ModelBuilder:
         placement: Point3 = (ZERO, ZERO, ZERO),
         drawing_label: bool = False,
         properties: dict[str, Any] | None = None,
+        physical: bool = True,
+        parent_id: str | None = None,
+        export_formats: set[str] | None = None,
     ) -> DesignElement:
         stable_id = f"complex.{_slug(category)}.{_slug(name)}"
         values = dict(properties or {})
@@ -138,6 +148,9 @@ class ModelBuilder:
             tags={"file-template", _slug(category)},
             properties=values,
             source_module="model",
+            physical=physical,
+            parent_id=parent_id,
+            export_formats=set(export_formats or {"step", "ifc", "glb", "drawings", "quantities"}),
         )
         self.elements.append(element)
         return element
@@ -156,6 +169,9 @@ class ModelBuilder:
         *,
         drawing_label: bool = False,
         properties: dict[str, Any] | None = None,
+        physical: bool = True,
+        parent_id: str | None = None,
+        export_formats: set[str] | None = None,
     ) -> DesignElement:
         return self.add_shape(
             category,
@@ -166,6 +182,9 @@ class ModelBuilder:
             placement=(x, y, z),
             drawing_label=drawing_label,
             properties=properties,
+            physical=physical,
+            parent_id=parent_id,
+            export_formats=export_formats,
         )
 
     def add_cylinder(
@@ -176,6 +195,11 @@ class ModelBuilder:
         end: Point3,
         radius: Length,
         color: Color,
+        *,
+        physical: bool = True,
+        parent_id: str | None = None,
+        properties: dict[str, Any] | None = None,
+        export_formats: set[str] | None = None,
     ) -> DesignElement:
         length = math.dist(tuple(to_mm(value) for value in start), tuple(to_mm(value) for value in end))
         return self.add_shape(
@@ -185,6 +209,10 @@ class ModelBuilder:
             color,
             Dimensions(length_mm=length, radius_mm=to_mm(radius)),
             placement=start,
+            physical=physical,
+            parent_id=parent_id,
+            properties=properties,
+            export_formats=export_formats,
         )
 
     def add_prism(
@@ -196,6 +224,11 @@ class ModelBuilder:
         width: Length,
         height: Length,
         color: Color,
+        *,
+        physical: bool = True,
+        parent_id: str | None = None,
+        properties: dict[str, Any] | None = None,
+        export_formats: set[str] | None = None,
     ) -> DesignElement:
         length = math.dist(tuple(to_mm(value) for value in start), tuple(to_mm(value) for value in end))
         return self.add_shape(
@@ -205,6 +238,10 @@ class ModelBuilder:
             color,
             Dimensions(length, to_mm(width), to_mm(height)),
             placement=start,
+            physical=physical,
+            parent_id=parent_id,
+            properties=properties,
+            export_formats=export_formats,
         )
 
 
@@ -1300,29 +1337,29 @@ def build_model(context: BuildContext) -> DesignModel:
             drawing_label=True,
         )
 
-    # Grass south of the pool, from the end of the tree row (y=-60ft) up
-    # to the pool's far tile border edge.
-    tree_end_y = -(24 * FOOT + 9 * 4 * FOOT + 3 * FOOT)  # bottom of last tree foliage
+    # Grass south of the pool extends to the shed's far Y edge and across to
+    # X=16.667yd.  This absorbs the former lower portion of RightGrassExtension.
     pool_south_far_y = pool_y - tile_border
-    pool_south_depth = pool_south_far_y - tree_end_y
+    pool_south_start_y = cfg.SHED_Y
+    pool_south_depth = pool_south_far_y - pool_south_start_y
     if to_mm(pool_south_depth) > 0:
         builder.add_box(
             "site",
             "PoolSouthGrass",
-            lower_deck_right_x,
+            cfg.POOL_SOUTH_GRASS_MAX_X,
             pool_south_depth,
             cfg.GRASS_THICKNESS,
             ZERO,
-            tree_end_y,
+            pool_south_start_y,
             -cfg.GRASS_THICKNESS,
             cfg.GRASS_COLOR,
         )
 
-    # 8ft grass extension at the furthest X axis point of pool and deck,
-    # extending all the way to the 0' Y axis (house wall).
+    # RightGrassExtension occupies only the near/house side of the shared
+    # boundary.  It stops exactly where PoolSouthGrass begins at y=-42ft.
     right_grass_x = lower_deck_right_x
-    right_grass_length = 8 * FOOT
-    right_grass_far_y = tree_end_y
+    right_grass_length = cfg.POOL_SOUTH_GRASS_MAX_X - right_grass_x
+    right_grass_far_y = pool_south_far_y
     right_grass_near_y = ZERO
     right_grass_depth = right_grass_near_y - right_grass_far_y
     if to_mm(right_grass_depth) > 0:
@@ -1337,6 +1374,27 @@ def build_model(context: BuildContext) -> DesignModel:
             -cfg.GRASS_THICKNESS,
             cfg.GRASS_COLOR,
         )
+
+    # Paver field from the shed front at y=-24yd back to the house datum at
+    # y=0, spanning from x=-17.117ft to the x=0 axis.
+    shed_paver_width = cfg.SHED_PAVER_MAX_X - cfg.SHED_PAVER_MIN_X
+    shed_paver_depth = cfg.SHED_PAVER_END_Y - cfg.SHED_PAVER_START_Y
+    builder.add_box(
+        "site",
+        "ShedAccessPavers",
+        shed_paver_width,
+        shed_paver_depth,
+        cfg.SHED_PAVER_THICKNESS,
+        cfg.SHED_PAVER_MIN_X,
+        cfg.SHED_PAVER_START_Y,
+        -cfg.SHED_PAVER_THICKNESS,
+        cfg.PAVER_COLOR,
+        properties={
+            "complex_type": "paver_field",
+            "connection": "shed_front_to_y_axis_zero",
+            "surface": "exterior_access_pavers",
+        },
+    )
 
     # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
     # The pool and its tile border occupy x=pool_x-tile_border..lower_deck_right_x
@@ -1386,6 +1444,119 @@ def build_model(context: BuildContext) -> DesignModel:
             "quantity_provenance": "exact_sloped_geometry",
             "deep_end_side": cfg.POOL_DEEP_END_SIDE,
         },
+    )
+
+    # Gable-roof yard shed wholly on the negative-X side.  Its near/front edge
+    # starts at y=-24yd and the body extends another 20ft toward negative Y.
+    shed_parent_id = "complex.shed.yard_storage_shed"
+    shed_x = cfg.SHED_X
+    shed_y = cfg.SHED_Y
+    shed_front_y = shed_y + cfg.SHED_DEPTH
+    shed_wall_top = cfg.SHED_WALL_HEIGHT
+    shed_ridge_x = shed_x + cfg.SHED_WIDTH / 2
+    shed_ridge_z = shed_wall_top + cfg.SHED_ROOF_RISE
+    shed_common_properties = {
+        "complex_type": "yard_storage_shed",
+        "view_relationship": "negative-X yard; front at y=-24yd; body extends toward negative Y",
+        "reference": "Photo 1 deck-to-yard view",
+    }
+    builder.add_box(
+        "shed",
+        "YardStorageShed",
+        cfg.SHED_WIDTH,
+        cfg.SHED_DEPTH,
+        cfg.SHED_SLAB_THICKNESS,
+        shed_x,
+        shed_y,
+        -cfg.SHED_SLAB_THICKNESS,
+        (0.15, 0.15, 0.15),
+        drawing_label=True,
+        properties={**shed_common_properties, "assembly_role": "foundation"},
+    )
+    wall_thickness = 4 * INCH
+    for name, length, depth, x, y in (
+        ("ShedLeftWall", wall_thickness, cfg.SHED_DEPTH, shed_x, shed_y),
+        (
+            "ShedRightWall",
+            wall_thickness,
+            cfg.SHED_DEPTH,
+            shed_x + cfg.SHED_WIDTH - wall_thickness,
+            shed_y,
+        ),
+        ("ShedRearWall", cfg.SHED_WIDTH, wall_thickness, shed_x, shed_y),
+        (
+            "ShedFrontWall",
+            cfg.SHED_WIDTH,
+            wall_thickness,
+            shed_x,
+            shed_front_y - wall_thickness,
+        ),
+    ):
+        builder.add_box(
+            "shed",
+            name,
+            length,
+            depth,
+            cfg.SHED_WALL_HEIGHT,
+            x,
+            y,
+            ZERO,
+            cfg.SHED_SIDING_COLOR,
+            parent_id=shed_parent_id,
+            properties={**shed_common_properties, "assembly_role": "wall"},
+        )
+
+    roof_y = shed_y - cfg.SHED_ROOF_OVERHANG
+    roof_depth = cfg.SHED_DEPTH + 2 * cfg.SHED_ROOF_OVERHANG
+    builder.add_prism(
+        "shed",
+        "ShedRoofLeftSlope",
+        (shed_x - cfg.SHED_ROOF_OVERHANG, roof_y, shed_wall_top),
+        (shed_ridge_x, roof_y, shed_ridge_z),
+        roof_depth,
+        cfg.SHED_ROOF_THICKNESS,
+        cfg.SHED_ROOF_COLOR,
+        parent_id=shed_parent_id,
+        properties={**shed_common_properties, "assembly_role": "roof"},
+    )
+    builder.add_prism(
+        "shed",
+        "ShedRoofRightSlope",
+        (shed_ridge_x, roof_y, shed_ridge_z),
+        (shed_x + cfg.SHED_WIDTH + cfg.SHED_ROOF_OVERHANG, roof_y, shed_wall_top),
+        roof_depth,
+        cfg.SHED_ROOF_THICKNESS,
+        cfg.SHED_ROOF_COLOR,
+        parent_id=shed_parent_id,
+        properties={**shed_common_properties, "assembly_role": "roof"},
+    )
+
+    front_door_x = shed_x + (cfg.SHED_WIDTH - cfg.SHED_FRONT_DOOR_WIDTH) / 2
+    builder.add_box(
+        "shed",
+        "ShedFrontDoubleDoor",
+        cfg.SHED_FRONT_DOOR_WIDTH,
+        1 * INCH,
+        cfg.SHED_FRONT_DOOR_HEIGHT,
+        front_door_x,
+        shed_front_y,
+        ZERO,
+        cfg.SHED_TRIM_COLOR,
+        parent_id=shed_parent_id,
+        properties={**shed_common_properties, "assembly_role": "front_double_door"},
+    )
+    builder.add_box(
+        "shed",
+        "ShedSideServiceDoor",
+        1 * INCH,
+        cfg.SHED_SIDE_DOOR_WIDTH,
+        cfg.SHED_SIDE_DOOR_HEIGHT,
+        shed_x + cfg.SHED_WIDTH,
+        shed_front_y - cfg.SHED_SIDE_DOOR_WIDTH - 18 * INCH,
+        ZERO,
+        cfg.SHED_TRIM_COLOR,
+        parent_id=shed_parent_id,
+        properties={**shed_common_properties, "assembly_role": "side_service_door"},
     )
 
     # Ten evergreen trees along x=0, every 4ft, starting at y=-24ft
