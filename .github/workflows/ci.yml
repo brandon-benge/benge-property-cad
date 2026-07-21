@@ -208,6 +208,8 @@ jobs:
 
   boundary-governance:
     runs-on: ubuntu-24.04
+    outputs:
+      python_cad_tools_version: ${{ steps.dependency_boundary.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -225,15 +227,20 @@ jobs:
           pip install --require-hashes -r requirements/locks/dev-ubuntu-x86_64-py313.lock
           pip check
       - name: Dependency boundary check
+        id: dependency_boundary
         run: |
           python -c "
-          import importlib.metadata, tomllib
+          import importlib.metadata, os, tomllib
+          from packaging.requirements import Requirement
+          from packaging.version import Version
           with open('pyproject.toml', 'rb') as f:
               deps = tomllib.load(f)['project']['dependencies']
-          expected = next(d for d in deps if d.startswith('python-cad-tools'))
+          expected = Requirement(next(d for d in deps if d.startswith('python-cad-tools')))
           ver = importlib.metadata.version('python-cad-tools')
           print(f'python-cad-tools version: {ver}')
-          assert ver in expected, f'Expected {expected}, got {ver}'
+          assert Version(ver) in expected.specifier, f'Expected {expected}, got {ver}'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'version={ver}', file=output)
           "
           python -c "
           import python_cad_tools
@@ -273,21 +280,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Get python-cad-tools version
-        id: cad-ver
-        shell: python
-        run: |
-          import os, tomllib
-          with open('pyproject.toml', 'rb') as f:
-              deps = tomllib.load(f)['project']['dependencies']
-          ver = next(d for d in deps if d.startswith('python-cad-tools')).split('==')[1]
-          print(f'version={ver}', file=open(os.environ["GITHUB_OUTPUT"], "a"))
       - run: |
           cat <<JSON > compatibility-report.json
           {
             "plan_contract": "repo-split-v1",
             "design_revision": "${{ github.sha }}",
-            "python_cad_tools_version": "${{ steps.cad-ver.outputs.version }}",
+            "python_cad_tools_version": "${{ needs.boundary-governance.outputs.python_cad_tools_version }}",
             "workflow_run_id": "${{ github.run_id }}",
             "status": "completed",
             "date": "${{ github.event.repository.updated_at }}"
