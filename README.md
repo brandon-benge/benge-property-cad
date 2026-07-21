@@ -1,148 +1,103 @@
-# File Template CAD
+# Benge Property CAD
 
-This project uses `model.py`, `config.py`, and `drawing_annotations.py` as its
-authoritative design source. One headless build generates exact STEP, IFC4, GLB,
-conceptual SVG/DXF/PDF drawings, quantities, validation reports, and manifests
-without FreeCAD or Blender.
+Parametric CAD model of the Benge property, built with the published
+`python-cad-tools` package. The editable design lives in `config.py`, `model.py`,
+and `drawing_annotations.py`; tests live in `tests/`.
+
+A headless build produces STEP, IFC4, GLB, conceptual SVG/DXF/PDF drawings,
+quantity reports, validation reports, and manifests. FreeCAD and Blender are not
+required.
+
+## Requirements
+
+- Python 3.12 or 3.13
+- A platform matching one of the lockfiles in `requirements/locks/`
 
 ## Setup
 
-```bash
-python3 -m venv .venv
-.venv/bin/pip install --require-hashes -r requirements/locks/dev-py313-macos-arm64.lock
-python-cad build
-python-cad verify
-```
-
-Edit project dimensions and materials in `config.py` and build shared elements in
-`model.py`. Preserve stable semantic IDs.
-
-## Local viewer
-
-Build the model and start the interactive 3D viewer:
+Create a virtual environment and install the lockfile for your platform and
+Python version. For example, on Apple silicon with Python 3.13:
 
 ```bash
-# Build generated artifacts (STEP, IFC, GLB, drawings, quantities)
-.venv/bin/python-cad build
-
-# Start the local viewer server
-.venv/bin/python-cad serve --port 8080
+python3.13 -m venv .venv
+.venv/bin/pip install --require-hashes \
+  -r requirements/locks/dev-macos-arm64-py313.lock
 ```
 
-Open the URL printed to the terminal (typically `http://127.0.0.1:8080/`). The
-viewer provides orbit controls, element selection, measurement, and download
-links for all generated formats.
+Available lockfiles cover Python 3.12 and 3.13 on macOS arm64 and Ubuntu
+x86_64. Each lock records exact transitive versions and hashes.
 
-### Upgrade the local viewer
-
-The viewer is provided by the latest compatible `python-cad-tools` version
-allowed by `pyproject.toml`. Fetch and install it without building the CAD
-model:
+## Build and inspect the model
 
 ```bash
-.venv/bin/pip install --upgrade --no-cache-dir .
-.venv/bin/python-cad --version
+.venv/bin/python-cad validate --project-root .
+.venv/bin/python-cad build --project-root .
+.venv/bin/python-cad verify --project-root .
 ```
 
-`--upgrade` selects the newest compatible release, while `--no-cache-dir`
-prevents reuse of a cached download. This only updates the installed tools; run
-`python-cad build` separately when you want to regenerate the model. Exact,
-reproducible versions remain recorded in the lockfiles described below.
+To inspect the result in the interactive viewer:
 
-## Installed commands
+```bash
+.venv/bin/python-cad serve --project-root . --port 8080
+```
+
+Open the URL printed in the terminal, typically
+`http://127.0.0.1:8080/`. The viewer supports orbit controls, element
+selection, measurement, and downloads of generated formats.
+
+Generated files are written to `generated/`. They are disposable build evidence
+and are ignored by Git except for `.gitkeep`; edit the authoritative Python
+source instead.
+
+## Edit the design
+
+- Change dimensions and materials in `config.py`.
+- Compose shared geometry and metadata in `model.py`.
+- Maintain drawing labels and dimensions in `drawing_annotations.py`.
+- Preserve stable semantic IDs, including existing `complex.*` IDs.
+- Update geometry, metadata, and tests together.
+
+Use only documented public APIs from the installed `python-cad-tools` package.
+
+## Development checks
+
+```bash
+.venv/bin/ruff check config.py model.py drawing_annotations.py tests/
+.venv/bin/ruff format --check config.py model.py drawing_annotations.py tests/
+.venv/bin/mypy config.py model.py drawing_annotations.py tests/
+.venv/bin/python -m pytest -q
+```
+
+Additional project commands:
 
 ```text
-python-cad validate --project-root PATH [--format FORMAT ...]
-python-cad build --project-root PATH [--format FORMAT ...]
-python-cad verify --project-root PATH
 python-cad clean --project-root PATH
 python-cad prepare-site --project-root PATH --destination PATH --base-path PATH
-python-cad serve --project-root PATH --host 127.0.0.1 --port PORT [--build]
 ```
 
-All commands use the installed `python-cad-tools` package. No root build launcher,
-start script, or vendored `.tools/` directory is used.
+CI runs the applicable static analysis, tests, build, verification, and site
+checks with the native lockfile for its environment.
 
-Static analysis and tests:
+## Dependency updates
 
-```bash
-ruff check config.py model.py drawing_annotations.py tests/
-ruff format --check config.py model.py drawing_annotations.py tests/
-mypy config.py model.py drawing_annotations.py tests/
-python -m pytest -q
-```
+The project currently allows `python-cad-tools>=0.1.4,<0.2`. When upgrading the
+package, regenerate all four native lockfiles, confirm that they contain no
+local path or source-checkout references, and rerun the full verification
+matrix. This repository must consume the published PyPI package; do not vendor,
+patch, or install `python-cad-tools` from a local checkout.
 
-## Dependency management
+## Limitations
 
-The project allows `python-cad-tools>=0.1.4,<0.2`; four native reproducible locks
-record the exact resolved package versions and hashes:
-
-| Lock | Cell |
-|------|------|
-| `requirements/locks/dev-py312-ubuntu-x86_64.lock` | Ubuntu x86_64, Python 3.12 |
-| `requirements/locks/dev-py313-ubuntu-x86_64.lock` | Ubuntu x86_64, Python 3.13 |
-| `requirements/locks/dev-py312-macos-arm64.lock` | macOS arm64, Python 3.12 |
-| `requirements/locks/dev-py313-macos-arm64.lock` | macOS arm64, Python 3.13 |
-
-Each lock is generated natively in its named cell using `pip-tools` and contains
-exact transitive versions and hashes. CI installs only its matching lock.
-
-### Candidate upgrade procedure
-
-1. Obtain the checksum-verified wheel/sdist for the new `python-cad-tools` version.
-2. Set `PIP_FIND_LINKS` to the ephemeral directory containing the candidate wheel.
-3. Regenerate all four native locks with cache disabled.
-4. Verify no lock contains a `file:`, path, or source reference to the candidate.
-5. Run the full local static analysis, test, build, verify, site, and browser matrix.
-6. Update `pyproject.toml` dependency version and commit all lock changes.
-7. After registry publication, regenerate locks from the registry (no `PIP_FIND_LINKS`),
-   verify downloaded hashes match the certified handoff, and rerun the full matrix.
-
-## Local-first, remote-deferred
-
-Static analysis, tests, builds, and site preparation all run locally without
-contacting GitHub. CI and Pages workflows are defined for remote execution but
-every check can be run with the commands above. Workflow-policy and symlink
-tests (`tests/test_workflow_policy.py`) run locally without network access.
-
-## Conceptual limitations
-
-Generated drawings are conceptual and not for construction or permitting. This
-project does not provide engineering, code, permit, survey, or licensed-trade
-approval.
-
-`generated/` is ignored by Git except for `.gitkeep`. CI uploads generated
-artifacts instead of committing them.
+Generated drawings are conceptual and are not suitable for construction or
+permitting. This project does not provide engineering, code, permit, survey, or
+licensed-trade approval.
 
 ## Agent governance
 
-See `AGENTS.md` for separation of duties, writable scope, and build/verification
-commands. The project uses five roles:
+See `AGENTS.md` for repository boundaries, responsibilities, writable scope,
+and verification expectations for the four project roles:
 
-- **file-design-maintainer**: config/model/annotation/test edits
-- **file-artifact-reviewer**: read-only artifact review
-- **cad-compatibility-verifier**: independent verification
-- **save**: exclusive autocommit persistence
-
-### `specrepo-autocommit` configuration
-
-The `save` agent uses LangChain's `specrepo-autocommit` tool, configured via
-`.autoconfig.yaml` in the project root. Before invoking `save`, you **must**
-set the API key:
-
-```bash
-export OPENCODE_API_KEY="sk-..."
-```
-
-Key settings in `.autoconfig.yaml`:
-
-- **Primary model**: `deepseek-v4-flash` via `https://opencode.ai/zen/go/v1`,
-  authenticated with `OPENCODE_API_KEY`
-- **Fallback model**: `deepseek-v4-flash` (same model, no key required)
-- **Conventional commits**: enforced (`type(scope): subject`) with scope
-  inferred from folder name
-- **Auto-push**: pushes after commit and sets upstream for new branches
-- **Quality checks**: up to 2 retries, minimum 3 body lines, boilerplate
-  rejection
-
-See `.autoconfig.yaml` for the full reference.
+- `file-design-maintainer`
+- `file-artifact-reviewer`
+- `cad-compatibility-verifier`
+- `save`
