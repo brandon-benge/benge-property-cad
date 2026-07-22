@@ -41,6 +41,10 @@ def test_deck_elevations(copied_project) -> None:
     assert to_mm(cfg.JOIST_SPACING) > to_mm(cfg.JOIST_WIDTH)
     assert to_mm(cfg.BEAM_WIDTH) > 0
     assert to_mm(cfg.BEAM_HEIGHT) > to_mm(cfg.BEAM_WIDTH)
+    assert to_mm(cfg.BEAM_FEATURE_CLEARANCE) > 0
+    assert to_mm(cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH) > 0
+    assert to_mm(cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT) > 0
+    assert to_mm(cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_SILL) >= 0
     assert to_mm(cfg.SUPPORT_POST_SIZE) > 0
 
 
@@ -87,6 +91,10 @@ def test_pool_dimensions(copied_project) -> None:
     assert to_mm(cfg.POOL_DEEP_DEPTH) > to_mm(cfg.POOL_SHALLOW_DEPTH)
     assert to_mm(cfg.PATIO_BORDER) > 0
     assert to_mm(cfg.DECK_TO_POOL_CLEARANCE) > 0
+    assert to_mm(cfg.POOL_TILE_SURROUND_MAX_X) == pytest.approx(12_852.0)
+    assert to_mm(cfg.POOL_LENGTH) == pytest.approx(
+        to_mm(cfg.POOL_TILE_SURROUND_MAX_X - cfg.POOL_TILE_SURROUND_MIN_X - 2 * cfg.PATIO_BORDER)
+    )
 
 
 def test_photo_matched_yard_parameters(copied_project) -> None:

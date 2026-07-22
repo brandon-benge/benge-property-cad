@@ -3,7 +3,7 @@
 Covers:
 - 2' tile border ring (individual 2' x 2' tiles, not a solid slab) around the pool
 - pool deep end on the reverse (left) side, shallow end on the right
-- leftmost pool tile edge starts at positive x=2.667yd
+- pool tile surround ends at x=12.852m
 - grass strip between the lower deck stairs and the pool
 - fireplace width doubled (4' wide)
 - hot tub deck (lower deck) is 17.5' across
@@ -15,10 +15,11 @@ Covers:
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pytest
-from python_cad_tools.units import FOOT, to_mm
+from python_cad_tools.units import FOOT, INCH, to_mm
 
 
 def _element_by_id(manifest: dict, element_id: str) -> dict:
@@ -48,6 +49,59 @@ def _load_config(copied_project: Path):
         return cfg
     finally:
         sys.path.remove(str(copied_project))
+
+
+def test_deck_skirt_lights_cover_every_perimeter_run(
+    copied_project: Path, design_manifest: dict, project_import
+) -> None:
+    cfg = _load_config(copied_project)
+    from python_cad_tools.context import BuildContext
+
+    import model as model_mod
+
+    design = model_mod.build_model(
+        BuildContext(project_root=copied_project, config=cfg, source_revision="test", source_dirty=False)
+    )
+    model_elements = {element.id: element for element in design.elements}
+    elements = {element["id"]: element for element in design_manifest["elements"]}
+    skirt_runs = {
+        "upper_deck_front_skirt": cfg.UPPER_DECK_WIDTH,
+        "upper_deck_left_skirt": cfg.UPPER_DECK_DEPTH,
+        "upper_deck_right_skirt": cfg.UPPER_DECK_DEPTH,
+        "lower_deck_right_skirt": cfg.LOWER_DECK_DEPTH,
+        "upper_deck_extension_right_skirt": 6 * FOOT,
+    }
+    for skirt_name, run_length in skirt_runs.items():
+        lights = [
+            element
+            for element_id, element in elements.items()
+            if element_id.startswith(f"complex.skirting.{skirt_name}_light_")
+        ]
+        usable = max(0.0, to_mm(run_length - 2 * cfg.DECK_LIGHT_END_INSET))
+        expected_count = max(1, math.ceil(usable / to_mm(cfg.DECK_LIGHT_MAX_SPACING))) + 1
+        assert len(lights) == expected_count
+        for light in lights:
+            properties = model_elements[light["id"]].properties
+            assert properties["complex_type"] == "deck_skirt_light"
+            assert properties["illuminates"] == f"complex.skirting.{skirt_name}"
+            assert properties["color_temperature_k"] == 2700
+
+
+def test_every_stair_riser_has_recommended_light_count(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    ids = {element["id"] for element in design_manifest["elements"]}
+    stair_runs = (
+        ("upper_straight", cfg.UPPER_DECK_ELEVATION, cfg.LOWER_DECK_ELEVATION, 1),
+        ("lower_front", cfg.LOWER_DECK_ELEVATION, 0 * INCH, 2),
+    )
+    for prefix, start_z, end_z, fixtures_per_riser in stair_runs:
+        step_count = max(1, math.ceil(abs(to_mm(start_z - end_z)) / to_mm(cfg.MAX_RISER)))
+        for step_index in range(1, step_count + 1):
+            expected = {
+                f"complex.stair.{prefix}_riser_light_{step_index:02d}_{fixture_index:02d}"
+                for fixture_index in range(1, fixtures_per_riser + 1)
+            }
+            assert expected <= ids
 
 
 # ── Pool tile border ring (individual 2' tiles) ─────────────────────────────
@@ -83,20 +137,23 @@ def test_pool_tile_border_is_individual_two_foot_tiles(copied_project: Path, des
     assert tile_mm == pytest.approx(to_mm(2 * FOOT))
 
     tile_ids = sorted(_tile_ids(design_manifest))
-    # 8 (left) + 8 (right) + 17 (near) + 17 (far) = 50 individual tiles.
-    assert len(tile_ids) == 50
+    side_tiles = math.ceil(to_mm(cfg.POOL_WIDTH + 2 * cfg.PATIO_BORDER) / tile_mm)
+    end_tiles = math.ceil(to_mm(cfg.POOL_LENGTH) / tile_mm)
+    assert len(tile_ids) == 2 * side_tiles + 2 * end_tiles
     for tile_id in tile_ids:
         b = _bounds(design_manifest, tile_id)
         # Each tile is a 2' x 2' piece (one tile wide in the border direction,
-        # 2' long along the run).  The last tile in a run may be shorter if the
-        # run length is not a whole multiple of the tile size; here the runs
-        # (16' and 34') divide evenly by 2', so every tile is a full 2' x 2'.
-        assert (b[3] - b[0]) == pytest.approx(tile_mm), f"{tile_id} x-span != 2'"
-        assert (b[4] - b[1]) == pytest.approx(tile_mm), f"{tile_id} y-span != 2'"
+        # 2' long along the run). The last tile may be cut shorter to meet the
+        # exact requested surround endpoint.
+        x_span = b[3] - b[0]
+        y_span = b[4] - b[1]
+        assert 0 < x_span <= tile_mm + 1e-6
+        assert 0 < y_span <= tile_mm + 1e-6
+        assert x_span == pytest.approx(tile_mm) or y_span == pytest.approx(tile_mm)
 
 
 def test_pool_tile_border_ring_surrounds_pool_without_overlap(design_manifest: dict) -> None:
-    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
     pool_min_x, pool_min_y, _, pool_max_x, pool_max_y, _ = pool
 
     for tile_id in sorted(_tile_ids(design_manifest)):
@@ -105,6 +162,15 @@ def test_pool_tile_border_ring_surrounds_pool_without_overlap(design_manifest: d
         outside_x = b[3] <= pool_min_x + 1e-6 or b[0] >= pool_max_x - 1e-6
         outside_y = b[4] <= pool_min_y + 1e-6 or b[1] >= pool_max_y - 1e-6
         assert outside_x or outside_y, f"Tile {tile_id} overlaps the pool footprint"
+
+
+def test_pool_name_and_semantic_id_are_dimension_independent(design_manifest: dict) -> None:
+    pool_id = "complex.pool.main_pool_water_sloped5ft_to8ft"
+    pool = _element_by_id(design_manifest, pool_id)
+    assert pool["name"] == "MainPoolWater_Sloped5ftTo8ft"
+    assert not any(
+        element["id"] == "complex.pool.pool_water_34x12_5ft_to8ft" for element in design_manifest["elements"]
+    )
 
 
 def test_pool_tile_border_no_tile_overlaps_another(design_manifest: dict) -> None:
@@ -116,18 +182,19 @@ def test_pool_tile_border_no_tile_overlaps_another(design_manifest: dict) -> Non
             assert not (overlap_x and overlap_y), f"Tiles overlap: {id_a} and {id_b}"
 
 
-def test_pool_tile_material_registered(design_manifest: dict) -> None:
+def test_pool_tile_material_registered(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
     tile_elements = [e for e in design_manifest["elements"] if e["id"].startswith(TILE_BORDER_PREFIX)]
-    assert len(tile_elements) == 50
+    expected_count = 2 * math.ceil(to_mm(cfg.POOL_WIDTH + 2 * cfg.PATIO_BORDER) / to_mm(cfg.POOL_TILE_SIZE))
+    expected_count += 2 * math.ceil(to_mm(cfg.POOL_LENGTH) / to_mm(cfg.POOL_TILE_SIZE))
+    assert len(tile_elements) == expected_count
     for element in tile_elements:
         assert element["material_id"] == "material.complex.site.199_204_209"
-    # The removed pool patio does not return; paver material is limited to the
-    # shed drive and its deliberately narrow vehicle connector.
+    # The removed pool patio does not return; the shed drive and its narrow
+    # vehicle connector export as one paver element.
     paver_elements = [e for e in design_manifest["elements"] if e["material_id"] == "material.complex.site.178_178_173"]
-    assert {e["id"] for e in paver_elements} == {
-        "complex.site.shed_access_pavers",
-        "complex.site.vehicle_access_connector",
-    }
+    assert {e["id"] for e in paver_elements} == {"complex.site.unified_shed_vehicle_access_pavers"}
+    assert paver_elements[0]["name"] == "UnifiedShedVehicleAccessPavers"
 
 
 # ── Pool deep end on the reverse (left) side ─────────────────────────────────
@@ -137,7 +204,7 @@ def test_pool_deep_end_on_reverse_side(copied_project: Path, design_manifest: di
     cfg = _load_config(copied_project)
     assert cfg.POOL_DEEP_END_SIDE == "left"
 
-    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
     pool_min_x, _, pool_min_z, pool_max_x, _, pool_max_z = pool
     # The pool reaches the full deep depth on the reverse (left) side.
     assert pool_min_z == pytest.approx(-to_mm(cfg.POOL_DEEP_DEPTH))
@@ -162,7 +229,7 @@ def test_pool_deep_end_on_reverse_side(copied_project: Path, design_manifest: di
     finally:
         sys.path.remove(str(copied_project))
 
-    pool_element = next(e for e in design.elements if e.id == "complex.pool.pool_water_34x12_5ft_to8ft")
+    pool_element = next(e for e in design.elements if e.id == "complex.pool.main_pool_water_sloped5ft_to8ft")
     vertices = list(pool_element.geometry.vertices())
     deep_z = min(v.Z for v in vertices)
     shallow_z = max(v.Z for v in vertices if v.Z < 0.0)
@@ -185,51 +252,40 @@ def test_pool_deep_end_on_reverse_side(copied_project: Path, design_manifest: di
 # ── Pool tile surround starts at positive x=2.667yd ─────────────────────────
 
 
-def test_pool_tile_surround_starts_at_requested_positive_x(copied_project: Path, design_manifest: dict) -> None:
+def test_pool_shrinks_so_tile_surround_ends_at_requested_x(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
-    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
-    left_tile_ids = sorted(
-        e["id"] for e in design_manifest["elements"] if e["id"].startswith("complex.site.pool_tile_border_left_")
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
+    right_tile_ids = sorted(
+        e["id"] for e in design_manifest["elements"] if e["id"].startswith("complex.site.pool_tile_border_right_")
     )
-    assert left_tile_ids, "No left tile border tiles found"
-    leftmost = min((_bounds(design_manifest, tid) for tid in left_tile_ids), key=lambda b: b[0])
+    assert right_tile_ids, "No right tile border tiles found"
+    right_tiles = [_bounds(design_manifest, tile_id) for tile_id in right_tile_ids]
 
-    requested_x = to_mm(2.667 * 3 * FOOT)
-    assert to_mm(cfg.POOL_TILE_SURROUND_MIN_X) == pytest.approx(requested_x)
-    assert leftmost[0] == pytest.approx(requested_x)
-    assert pool[0] == pytest.approx(requested_x + to_mm(cfg.PATIO_BORDER))
+    assert to_mm(cfg.POOL_TILE_SURROUND_MAX_X) == pytest.approx(12_852.0)
+    assert pool[0] == pytest.approx(to_mm(cfg.POOL_TILE_SURROUND_MIN_X + cfg.PATIO_BORDER))
+    assert min(tile[0] for tile in right_tiles) == pytest.approx(pool[3])
+    assert max(tile[3] for tile in right_tiles) == pytest.approx(12_852.0)
 
 
 # ── Grass between the deck and the pool ──────────────────────────────────────
 
 
-def test_grass_strip_between_deck_and_pool(copied_project: Path, design_manifest: dict) -> None:
+def test_grass_is_one_semantic_element(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
-    grass = _bounds(design_manifest, "complex.site.pool_grass_strip")
-    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
-
-    # Grass sits between the lower deck stairs and the pool's near tile border.
-    # Stair end is at the upper deck front edge.
-    stair_end_y = -to_mm(cfg.UPPER_DECK_DEPTH)
-    # Grass near edge (toward deck) is at the stair end.
-    assert grass[4] == pytest.approx(stair_end_y)
-    # Grass far edge (toward pool) is at the pool near tile border's near edge.
-    pool_near_border_edge = pool[4] + to_mm(cfg.PATIO_BORDER)
-    assert grass[1] == pytest.approx(pool_near_border_edge)
-    # Grass extends to x=0 (tree line) from the original x=4ft left tile border.
-    assert grass[0] == pytest.approx(0.0)
-    # Grass is on the deck side of the pool (no overlap with pool footprint).
-    assert grass[1] >= pool[4] - 1e-6
-
-
-def test_grass_south_of_pool_exists(design_manifest: dict) -> None:
-    ids = {e["id"] for e in design_manifest["elements"]}
-    assert "complex.site.pool_south_grass" in ids, "Missing PoolSouthGrass element"
-
-
-def test_right_grass_extension_exists(design_manifest: dict) -> None:
-    ids = {e["id"] for e in design_manifest["elements"]}
-    assert "complex.site.right_grass_extension" in ids, "Missing RightGrassExtension element"
+    rgb = "_".join(str(round(channel * 255)) for channel in cfg.GRASS_COLOR)
+    grass_material_id = f"material.complex.site.{rgb}"
+    grass_elements = [element for element in design_manifest["elements"] if element["material_id"] == grass_material_id]
+    assert [element["id"] for element in grass_elements] == ["complex.site.unified_yard_grass"]
+    assert grass_elements[0]["name"] == "UnifiedYardGrass"
+    retired_ids = {
+        "complex.site.pool_grass_strip",
+        "complex.site.pool_south_grass",
+        "complex.site.pool_south_grass_west_south",
+        "complex.site.pool_south_grass_west_north",
+        "complex.site.right_grass_extension",
+        "complex.site.pool_mid_grass",
+    }
+    assert retired_ids.isdisjoint(element["id"] for element in design_manifest["elements"])
 
 
 # ── Photo 1 shed and evergreen screening ────────────────────────────────────
@@ -274,6 +330,56 @@ def test_shed_has_gable_roof_and_side_door(copied_project: Path, design_manifest
         assert (wall[4] - wall[1]) == pytest.approx(2 * to_mm(10 * FOOT))
 
 
+def test_doors_do_not_intersect_their_wall_masses(copied_project: Path) -> None:
+    import sys
+
+    from python_cad_tools.context import BuildContext
+
+    cfg = _load_config(copied_project)
+    sys.path.insert(0, str(copied_project))
+    for mod in list(sys.modules):
+        if mod in ("config", "model", "drawing_annotations"):
+            del sys.modules[mod]
+    try:
+        import model as model_mod
+
+        design = model_mod.build_model(
+            BuildContext(project_root=copied_project, config=cfg, source_revision="test", source_dirty=False)
+        )
+    finally:
+        sys.path.remove(str(copied_project))
+
+    elements = {element.id: element for element in design.elements}
+    expected_openings = {
+        "complex.house.house_mass": "complex.feature.sliding_door",
+        "complex.shed.shed_right_wall": "complex.shed.shed_side_service_door",
+        "complex.shed.shed_front_wall": "complex.shed.shed_front_double_door",
+    }
+    for wall_id, door_id in expected_openings.items():
+        wall = elements[wall_id]
+        door = elements[door_id]
+        assert wall.properties["opening_for"] == door_id
+        intersection = wall.geometry.intersect(door.geometry)
+        assert intersection is None or intersection.volume == pytest.approx(0.0, abs=1e-6)
+
+
+def test_rock_bed_fills_strip_between_shed_and_grass(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    rock = _bounds(design_manifest, "complex.site.shed_grass_rock_bed")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+    grass = _bounds(design_manifest, "complex.site.unified_yard_grass")
+
+    assert rock[0] == pytest.approx(shed[3])
+    assert rock[3] == pytest.approx(grass[0])
+    assert rock[1] == pytest.approx(shed[1])
+    assert rock[4] == pytest.approx(shed[4])
+    assert rock[5] - rock[2] == pytest.approx(to_mm(cfg.ROCK_BED_THICKNESS))
+    rgb = "_".join(str(round(channel * 255)) for channel in cfg.ROCK_COLOR)
+    assert _element_by_id(design_manifest, "complex.site.shed_grass_rock_bed")["material_id"] == (
+        f"material.complex.site.{rgb}"
+    )
+
+
 def test_shed_siding_matches_house_blue_gray(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
     assert cfg.SHED_SIDING_COLOR == cfg.HOUSE_COLOR
@@ -298,29 +404,25 @@ def test_no_added_shed_screen_trees_remain(design_manifest: dict) -> None:
     assert not any(element_id.startswith("complex.site.shed_right_screen_tree_") for element_id in ids)
 
 
-def test_pool_south_grass_extends_to_shed_and_requested_x(copied_project: Path, design_manifest: dict) -> None:
+def test_unified_grass_spans_yard_extents(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
-    grass = _bounds(design_manifest, "complex.site.pool_south_grass")
+    grass = _bounds(design_manifest, "complex.site.unified_yard_grass")
     shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
     assert grass[1] == pytest.approx(shed[1])
+    assert grass[0] == pytest.approx(0.0)
     assert grass[3] == pytest.approx(to_mm(cfg.POOL_SOUTH_GRASS_MAX_X))
     assert grass[3] == pytest.approx(to_mm(16.667 * 3 * FOOT))
+    assert grass[4] == pytest.approx(0.0)
 
 
-def test_right_grass_extension_stops_at_pool_south_grass(design_manifest: dict) -> None:
-    south = _bounds(design_manifest, "complex.site.pool_south_grass")
-    right = _bounds(design_manifest, "complex.site.right_grass_extension")
-    assert right[1] == pytest.approx(south[4])
-    assert right[3] == pytest.approx(south[3])
-
-
-def test_shed_access_pavers_span_requested_axes(copied_project: Path, design_manifest: dict) -> None:
+def test_unified_access_pavers_span_requested_axes(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
-    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
+    pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
     shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
 
     assert pavers[0] == pytest.approx(-to_mm(17.117 * FOOT))
-    assert pavers[3] == pytest.approx(0.0)
+    assert pavers[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
     assert pavers[1] == pytest.approx(shed[4])
     assert pavers[1] == pytest.approx(-to_mm(24 * 3 * FOOT))
     assert pavers[4] == pytest.approx(0.0)
@@ -331,15 +433,11 @@ def test_vehicle_connector_is_tight_ten_foot_route_at_shed_near_pool_end(
     copied_project: Path, design_manifest: dict
 ) -> None:
     cfg = _load_config(copied_project)
-    connector = _bounds(design_manifest, "complex.site.vehicle_access_connector")
-    pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
-    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
-
-    assert (connector[4] - connector[1]) == pytest.approx(to_mm(10 * FOOT))
-    assert (connector[4] - connector[1]) == pytest.approx(to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH))
-    assert connector[0] == pytest.approx(pavers[3])
-    assert connector[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
-    assert connector[4] == pytest.approx(pool[1] - to_mm(cfg.PATIO_BORDER))
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
+    pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
+    assert to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH) == pytest.approx(to_mm(10 * FOOT))
+    assert pavers[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
+    assert pool[1] - to_mm(cfg.PATIO_BORDER) - to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH) > pavers[1]
 
 
 def test_one_tree_removed_for_clear_vehicle_gap_and_screen_reaches_shed(design_manifest: dict) -> None:
@@ -347,13 +445,15 @@ def test_one_tree_removed_for_clear_vehicle_gap_and_screen_reaches_shed(design_m
     assert "complex.site.tree_06_trunk" not in ids
     assert not any(element_id.startswith("complex.site.tree_06_foliage_") for element_id in ids)
 
-    connector = _bounds(design_manifest, "complex.site.vehicle_access_connector")
+    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
+    connector_end_y = pool[1] - to_mm(2 * FOOT)
+    connector_start_y = connector_end_y - to_mm(10 * FOOT)
     north_tree = _bounds(design_manifest, "complex.site.tree_05_foliage_1")
     south_tree = _bounds(design_manifest, "complex.site.tree_07_foliage_1")
     shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
     last_tree = _bounds(design_manifest, "complex.site.tree_11_foliage_1")
-    assert north_tree[1] == pytest.approx(connector[4])
-    assert south_tree[4] == pytest.approx(connector[1])
+    assert north_tree[1] == pytest.approx(connector_end_y)
+    assert south_tree[4] == pytest.approx(connector_start_y)
     assert last_tree[1] <= shed[4]
 
 
@@ -389,7 +489,7 @@ def test_right_boundary_tree_line_has_exact_four_foot_pitch(copied_project: Path
 def test_black_fence_runs_right_side_of_shed_access_pavers(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
     fence = _bounds(design_manifest, "complex.site.shed_access_fence")
-    pavers = _bounds(design_manifest, "complex.site.shed_access_pavers")
+    pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
     fence_element = _element_by_id(design_manifest, "complex.site.shed_access_fence")
 
     assert fence[3] <= pavers[0]
@@ -435,6 +535,64 @@ def test_hot_tub_sits_within_lower_deck(design_manifest: dict) -> None:
     assert (lower_right_x - hot_tub[3]) >= to_mm(1 * FOOT) - 1e-6
 
 
+def test_lower_mid_beam_clears_hot_tub_and_support_post_tracks_beam(
+    copied_project: Path, design_manifest: dict
+) -> None:
+    cfg = _load_config(copied_project)
+    beam = _bounds(design_manifest, "complex.deck_framing.lower_mid_beam")
+    hot_tub = _bounds(design_manifest, "complex.feature.hot_tub_placeholder")
+    support_post = _bounds(design_manifest, "complex.deck_framing.lower_support_post_04")
+
+    assert beam[4] <= hot_tub[1] - to_mm(cfg.BEAM_FEATURE_CLEARANCE) + 1e-6
+    assert support_post[1] <= (beam[1] + beam[4]) / 2 <= support_post[4]
+
+
+def test_upper_access_panel_is_past_mid_beam_and_has_matching_skirt_opening(
+    copied_project: Path, design_manifest: dict
+) -> None:
+    cfg = _load_config(copied_project)
+    beam = _bounds(design_manifest, "complex.deck_framing.upper_mid_beam")
+    panel = _bounds(design_manifest, "complex.skirting.upper_deck_left_skirt_access_panel")
+
+    assert panel[4] <= beam[1] - to_mm(cfg.BEAM_FEATURE_CLEARANCE) + 1e-6
+    assert panel[1] >= -to_mm(cfg.UPPER_DECK_DEPTH)
+
+    import sys
+
+    from python_cad_tools.context import BuildContext
+
+    sys.path.insert(0, str(copied_project))
+    for mod in list(sys.modules):
+        if mod in ("config", "model", "drawing_annotations"):
+            del sys.modules[mod]
+    try:
+        import model as model_mod
+
+        ctx = BuildContext(project_root=copied_project, config=cfg, source_revision="test", source_dirty=False)
+        design = model_mod.build_model(ctx)
+    finally:
+        sys.path.remove(str(copied_project))
+
+    elements = {element.id: element for element in design.elements}
+    skirt_element = elements["complex.skirting.upper_deck_left_skirt"]
+    panel_element = elements["complex.skirting.upper_deck_left_skirt_access_panel"]
+    lower_beam_element = elements["complex.deck_framing.lower_mid_beam"]
+    full_skirt_volume = (
+        to_mm(2 * INCH) * to_mm(cfg.UPPER_DECK_DEPTH) * to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS)
+    )
+    opening_volume = (
+        to_mm(2 * INCH)
+        * to_mm(cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH)
+        * to_mm(cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT)
+    )
+
+    assert skirt_element.geometry.volume == pytest.approx(full_skirt_volume - opening_volume)
+    assert skirt_element.properties["wall_opening"] is True
+    assert skirt_element.properties["opening_for"] == panel_element.id
+    assert panel_element.properties["opening_in"] == skirt_element.id
+    assert lower_beam_element.properties["clear_of"] == "complex.feature.hot_tub_placeholder"
+
+
 # ── Top (upper) deck extends 20' from the house toward the pool ──────────────
 
 
@@ -449,6 +607,41 @@ def test_upper_deck_front_skirt_at_twenty_feet(copied_project: Path, design_mani
     # Front skirt near edge (max_y) sits at y = -UPPER_DECK_DEPTH (20' from house).
     assert skirt[4] == pytest.approx(-to_mm(cfg.UPPER_DECK_DEPTH))
     assert skirt[4] == pytest.approx(-to_mm(20 * FOOT))
+
+
+def test_upper_right_skirts_stop_at_adjacent_deck_and_stair_elevations(
+    copied_project: Path, design_manifest: dict, project_import
+) -> None:
+    cfg = _load_config(copied_project)
+    upper_right = _bounds(design_manifest, "complex.skirting.upper_deck_right_skirt")
+    extension_right = _bounds(design_manifest, "complex.skirting.upper_deck_extension_right_skirt")
+
+    assert upper_right[2] == pytest.approx(to_mm(cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE))
+    assert upper_right[2] > 0.0
+    assert extension_right[2] == pytest.approx(to_mm(cfg.LOWER_DECK_ELEVATION))
+    assert upper_right[5] == pytest.approx(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS))
+    assert extension_right[5] == pytest.approx(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS))
+
+    from python_cad_tools.context import BuildContext
+
+    import model as model_mod
+
+    design = model_mod.build_model(
+        BuildContext(project_root=copied_project, config=cfg, source_revision="test", source_dirty=False)
+    )
+    elements = {element.id: element for element in design.elements}
+    skirt = elements["complex.skirting.upper_deck_right_skirt"]
+    full_bounding_box_volume = (
+        to_mm(2 * INCH)
+        * to_mm(cfg.UPPER_DECK_DEPTH)
+        * to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS - cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE)
+    )
+
+    assert skirt.geometry.volume < full_bounding_box_volume
+    assert skirt.properties["complex_type"] == "profiled_deck_skirt"
+    assert elements["complex.skirting.upper_deck_extension_right_skirt"].properties["complex_type"] == (
+        "deck_skirt_panel"
+    )
 
 
 # ── Stair risers line up with the back of the step ───────────────────────────

@@ -280,7 +280,7 @@ def test_plan_svg_content(built_output) -> None:
     plan_source_ids = {element.attrib.get("data-source-id") for element in plan.iter()}
     assert {
         "complex.house.house_mass",
-        "complex.pool.pool_water_34x12_5ft_to8ft",
+        "complex.pool.main_pool_water_sloped5ft_to8ft",
         "complex.feature.hot_tub_placeholder",
     } <= plan_source_ids
     assert "Conceptual" in "".join(plan.itertext())

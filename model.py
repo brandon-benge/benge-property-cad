@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from build123d import Plane
+from build123d import Plane, Polyline, extrude, make_face
 from python_cad_tools.context import BuildContext
 from python_cad_tools.elements import DesignElement, DesignModel, Dimensions, IfcMapping, MaterialSpec, Placement
 from python_cad_tools.geometry import box, cylinder_between, prism_between, sloped_pool
@@ -72,6 +72,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
     ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
+    ("site", cfg.ROCK_COLOR): ("Landscape Rock", 1650.0),
     ("site", cfg.FENCE_COLOR): ("Black Powder-Coated Aluminum Fence", 2700.0),
     # Vegetation solids are visual landscaping proxies, not material takeoff
     # solids; an unspecified density prevents fabricated construction mass.
@@ -84,7 +85,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("shed", (0.15, 0.15, 0.15)): ("Concrete Shed Slab", 2400.0),
     # Skirting
     ("skirting", cfg.SKIRTING_COLOR): ("Pressure-Treated Skirting", 500.0),
-    ("skirting", (0.95, 0.85, 0.10)): ("LED Strip Light", 100.0),
+    ("skirting", (0.95, 0.85, 0.10)): ("Low-Voltage LED Deck Light", 100.0),
     # Stair
     ("stair", cfg.DECK_COLOR): ("Composite Tread", 700.0),
     ("stair", cfg.SKIRTING_COLOR): ("Framing Lumber", 500.0),
@@ -291,7 +292,16 @@ def build_model(context: BuildContext) -> DesignModel:
                 index += 1
 
     def add_deck_framing(
-        prefix: str, x: Length, y: Length, length: Length, depth: Length, z: Length, post_points: list[Point2]
+        prefix: str,
+        x: Length,
+        y: Length,
+        length: Length,
+        depth: Length,
+        z: Length,
+        post_points: list[Point2],
+        *,
+        mid_beam_y: Length | None = None,
+        mid_beam_properties: dict[str, Any] | None = None,
     ) -> None:
         frame_top = z - cfg.DECK_BOARD_THICKNESS
         joist_z = frame_top - cfg.JOIST_HEIGHT
@@ -368,6 +378,7 @@ def build_model(context: BuildContext) -> DesignModel:
             cfg.RAILING_COLOR,
         )
         if depth > 8 * cfg.FOOT:
+            resolved_mid_beam_y = mid_beam_y if mid_beam_y is not None else y + depth / 2 - cfg.BEAM_WIDTH / 2
             builder.add_box(
                 "deck-framing",
                 f"{prefix}MidBeam",
@@ -375,9 +386,10 @@ def build_model(context: BuildContext) -> DesignModel:
                 cfg.BEAM_WIDTH,
                 cfg.BEAM_HEIGHT,
                 x,
-                y + depth / 2 - cfg.BEAM_WIDTH / 2,
+                resolved_mid_beam_y,
                 beam_z,
                 cfg.RAILING_COLOR,
+                properties=mid_beam_properties,
             )
         for index, (post_x, post_y) in enumerate(post_points, 1):
             builder.add_box(
@@ -392,17 +404,27 @@ def build_model(context: BuildContext) -> DesignModel:
                 cfg.RAILING_COLOR,
             )
 
-    builder.add_box(
+    sliding_door_x = 3 * cfg.FOOT + 6 * INCH
+    sliding_door_y = -1.5 * INCH
+    house_mass = box(cfg.HOUSE_WIDTH, cfg.HOUSE_DEPTH, cfg.HOUSE_HEIGHT, origin=(ZERO, ZERO, ZERO))
+    sliding_door_opening = box(
+        cfg.DOOR_WIDTH,
+        cfg.HOUSE_DEPTH,
+        cfg.DOOR_HEIGHT,
+        origin=(sliding_door_x, ZERO, cfg.UPPER_DECK_ELEVATION),
+    )
+    builder.add_shape(
         "house",
         "HouseMass",
-        cfg.HOUSE_WIDTH,
-        cfg.HOUSE_DEPTH,
-        cfg.HOUSE_HEIGHT,
-        ZERO,
-        ZERO,
-        ZERO,
+        house_mass.cut(sliding_door_opening),
         cfg.HOUSE_COLOR,
+        Dimensions(to_mm(cfg.HOUSE_WIDTH), to_mm(cfg.HOUSE_DEPTH), to_mm(cfg.HOUSE_HEIGHT)),
         drawing_label=True,
+        properties={
+            "complex_type": "house_mass",
+            "assembly_role": "exterior_wall_with_openings",
+            "opening_for": "complex.feature.sliding_door",
+        },
     )
     add_deck_boards(
         "Upper", ZERO, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_WIDTH, cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION, "x"
@@ -421,9 +443,18 @@ def build_model(context: BuildContext) -> DesignModel:
             (ZERO, -cfg.UPPER_DECK_DEPTH / 2),
             (cfg.UPPER_DECK_WIDTH, -cfg.UPPER_DECK_DEPTH / 2),
         ],
+        mid_beam_properties={
+            "complex_type": "deck_support_beam",
+            "assembly_role": "mid_span_support",
+            "supports": "complex.deck_board.upper_*",
+            "clear_of": "complex.skirting.upper_deck_left_skirt_access_panel",
+        },
     )
 
     lower_x = cfg.UPPER_DECK_WIDTH
+    hot_tub_x = cfg.UPPER_DECK_WIDTH + cfg.LOWER_DECK_WIDTH - cfg.HOT_TUB_WIDTH - cfg.FOOT
+    hot_tub_y = -(cfg.HOT_TUB_DEPTH + 1.5 * cfg.FOOT)
+    lower_mid_beam_y = hot_tub_y - cfg.BEAM_FEATURE_CLEARANCE - cfg.BEAM_WIDTH
     add_deck_boards(
         "Lower",
         lower_x,
@@ -444,8 +475,16 @@ def build_model(context: BuildContext) -> DesignModel:
             (lower_x, -cfg.LOWER_DECK_DEPTH),
             (lower_x + cfg.LOWER_DECK_WIDTH / 2, -cfg.LOWER_DECK_DEPTH),
             (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH),
-            (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH / 2),
+            (lower_x + cfg.LOWER_DECK_WIDTH, lower_mid_beam_y + cfg.BEAM_WIDTH / 2),
         ],
+        mid_beam_y=lower_mid_beam_y,
+        mid_beam_properties={
+            "complex_type": "deck_support_beam",
+            "assembly_role": "mid_span_support",
+            "supports": "complex.deck_board.lower_*",
+            "clear_of": "complex.feature.hot_tub_placeholder",
+            "minimum_clearance_mm": to_mm(cfg.BEAM_FEATURE_CLEARANCE),
+        },
     )
 
     # Shed-style roof attached high on the house wall and sloping down toward
@@ -764,8 +803,8 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.DOOR_WIDTH,
         3 * INCH,
         cfg.DOOR_HEIGHT,
-        3 * cfg.FOOT + 6 * INCH,
-        -1.5 * INCH,
+        sliding_door_x,
+        sliding_door_y,
         cfg.UPPER_DECK_ELEVATION,
         (0.55, 0.70, 0.82),
         drawing_label=True,
@@ -851,8 +890,6 @@ def build_model(context: BuildContext) -> DesignModel:
             (0.22, 0.22, 0.22),
         )
 
-    hot_tub_x = cfg.UPPER_DECK_WIDTH + cfg.LOWER_DECK_WIDTH - cfg.HOT_TUB_WIDTH - cfg.FOOT
-    hot_tub_y = -(cfg.HOT_TUB_DEPTH + 1.5 * cfg.FOOT)
     builder.add_box(
         "feature",
         "HotTubPlaceholder",
@@ -1014,6 +1051,23 @@ def build_model(context: BuildContext) -> DesignModel:
     skirt_thickness = 2 * INCH
     upper_skirt_height = cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS
     lower_skirt_height = cfg.LOWER_DECK_ELEVATION - cfg.DECK_THICKNESS
+    upper_right_skirt_bottom = cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE
+    upper_right_skirt_profile = Plane.YZ * Polyline(
+        (-to_mm(cfg.UPPER_DECK_DEPTH), to_mm(upper_right_skirt_bottom)),
+        (-to_mm(cfg.LOWER_DECK_DEPTH), to_mm(cfg.LOWER_DECK_ELEVATION)),
+        (0.0, to_mm(cfg.LOWER_DECK_ELEVATION)),
+        (0.0, to_mm(upper_skirt_height)),
+        (-to_mm(cfg.UPPER_DECK_DEPTH), to_mm(upper_skirt_height)),
+        close=True,
+    )
+    upper_right_skirt = (
+        extrude(
+            make_face(upper_right_skirt_profile),
+            amount=to_mm(skirt_thickness),
+        )
+        .solid()
+        .translate((to_mm(cfg.UPPER_DECK_WIDTH), 0.0, 0.0))
+    )
     builder.add_box(
         "skirting",
         "UpperDeckFrontSkirt",
@@ -1025,27 +1079,56 @@ def build_model(context: BuildContext) -> DesignModel:
         ZERO,
         cfg.SKIRTING_COLOR,
     )
-    builder.add_box(
+    upper_mid_beam_y = -cfg.UPPER_DECK_DEPTH / 2 - cfg.BEAM_WIDTH / 2
+    upper_access_panel_max_y = upper_mid_beam_y - cfg.BEAM_FEATURE_CLEARANCE
+    upper_access_panel_y = upper_access_panel_max_y - cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH
+    upper_access_panel_opening = box(
+        skirt_thickness,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT,
+        origin=(
+            -skirt_thickness,
+            upper_access_panel_y,
+            cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_SILL,
+        ),
+    )
+    upper_left_skirt = box(
+        skirt_thickness,
+        cfg.UPPER_DECK_DEPTH,
+        upper_skirt_height,
+        origin=(-skirt_thickness, -cfg.UPPER_DECK_DEPTH, ZERO),
+    )
+    builder.add_shape(
         "skirting",
         "UpperDeckLeftSkirt",
-        skirt_thickness,
-        cfg.UPPER_DECK_DEPTH,
-        upper_skirt_height,
-        -skirt_thickness,
-        -cfg.UPPER_DECK_DEPTH,
-        ZERO,
+        upper_left_skirt.cut(upper_access_panel_opening),
         cfg.SKIRTING_COLOR,
+        Dimensions(to_mm(skirt_thickness), to_mm(cfg.UPPER_DECK_DEPTH), to_mm(upper_skirt_height)),
+        placement=(-skirt_thickness, -cfg.UPPER_DECK_DEPTH, ZERO),
+        properties={
+            "complex_type": "deck_skirt_with_access_opening",
+            "assembly_role": "deck_enclosure",
+            "opening_for": "complex.skirting.upper_deck_left_skirt_access_panel",
+            "wall_opening": True,
+        },
     )
-    builder.add_box(
+    builder.add_shape(
         "skirting",
         "UpperDeckRightSkirt",
-        skirt_thickness,
-        cfg.UPPER_DECK_DEPTH,
-        upper_skirt_height,
-        cfg.UPPER_DECK_WIDTH,
-        -cfg.UPPER_DECK_DEPTH,
-        ZERO,
+        upper_right_skirt,
         cfg.SKIRTING_COLOR,
+        Dimensions(
+            to_mm(skirt_thickness),
+            to_mm(cfg.UPPER_DECK_DEPTH),
+            to_mm(upper_skirt_height - upper_right_skirt_bottom),
+        ),
+        placement=(cfg.UPPER_DECK_WIDTH, -cfg.UPPER_DECK_DEPTH, upper_right_skirt_bottom),
+        properties={
+            "complex_type": "profiled_deck_skirt",
+            "assembly_role": "deck_enclosure",
+            "adjacent_to": ["complex.deck_board.lower_*", "complex.stair.lower_front_*"],
+            "minimum_clearance_above_grade_mm": to_mm(cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE),
+        },
     )
     builder.add_box(
         "skirting",
@@ -1058,18 +1141,25 @@ def build_model(context: BuildContext) -> DesignModel:
         ZERO,
         cfg.SKIRTING_COLOR,
     )
-    # Access panel on UpperDeckLeftSkirt — on the skirt face, 6ft wide
+    # Access panel on the yard side of UpperMidBeam, aligned with its skirt opening.
     access_panel_color = (0.30, 0.25, 0.20)
     builder.add_box(
         "skirting",
         "UpperDeckLeftSkirtAccessPanel",
         INCH,
-        6 * FOOT,
-        2 * FOOT,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT,
         -skirt_thickness - INCH,
-        -14 * FOOT,  # spans y=-14ft to y=-8ft (within skirt y=-20ft..0)
-        ZERO + 6 * INCH,
+        upper_access_panel_y,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_SILL,
         access_panel_color,
+        properties={
+            "complex_type": "deck_skirt_access_panel",
+            "assembly_role": "service_access",
+            "opening_in": "complex.skirting.upper_deck_left_skirt",
+            "clear_of": "complex.deck_framing.upper_mid_beam",
+            "minimum_clearance_mm": to_mm(cfg.BEAM_FEATURE_CLEARANCE),
+        },
     )
     # Access panel on LowerDeckRightSkirt — starts 6in from y=0, 6ft wide
     # Box spans y=-6ft-6in to y=-6in (top edge 6in from house wall)
@@ -1087,65 +1177,87 @@ def build_model(context: BuildContext) -> DesignModel:
 
     # ── Lighting elements on all skirts and stairs ─────────────────────────
     light_color = (0.95, 0.85, 0.10)  # warm yellow
-    light_width = 0.5 * INCH
-    light_height = 0.25 * INCH
 
-    def _add_skirt_light(name: str, x: Length, y: Length, run_length: Length, z: Length, *, axis: str) -> None:
-        builder.add_box(
-            "skirting",
-            f"{name}Light",
-            light_width if axis == "y" else run_length,
-            run_length if axis == "y" else light_width,
-            light_height,
-            x,
-            y,
-            z,
-            light_color,
-        )
+    def _fixture_offsets(run_length: Length) -> list[float]:
+        run_mm = to_mm(run_length)
+        inset_mm = min(to_mm(cfg.DECK_LIGHT_END_INSET), run_mm / 2)
+        usable_mm = max(0.0, run_mm - 2 * inset_mm)
+        intervals = max(1, math.ceil(usable_mm / to_mm(cfg.DECK_LIGHT_MAX_SPACING)))
+        return [inset_mm + usable_mm * index / intervals for index in range(intervals + 1)]
+
+    def _add_skirt_lights(
+        name: str,
+        x: Length,
+        y: Length,
+        run_length: Length,
+        z: Length,
+        *,
+        axis: str,
+    ) -> None:
+        for index, offset_mm in enumerate(_fixture_offsets(run_length), start=1):
+            builder.add_box(
+                "skirting",
+                f"{name}Light_{index:02d}",
+                cfg.DECK_LIGHT_PROJECTION if axis == "y" else cfg.DECK_LIGHT_FACE_WIDTH,
+                cfg.DECK_LIGHT_FACE_WIDTH if axis == "y" else cfg.DECK_LIGHT_PROJECTION,
+                cfg.DECK_LIGHT_FACE_HEIGHT,
+                mm(to_mm(x) if axis == "y" else to_mm(x) + offset_mm - to_mm(cfg.DECK_LIGHT_FACE_WIDTH) / 2),
+                mm(to_mm(y) + offset_mm - to_mm(cfg.DECK_LIGHT_FACE_WIDTH) / 2 if axis == "y" else to_mm(y)),
+                z,
+                light_color,
+                properties={
+                    "complex_type": "deck_skirt_light",
+                    "assembly_role": "low_voltage_perimeter_lighting",
+                    "illuminates": f"complex.skirting.{_slug(name)}",
+                    "color_temperature_k": 2700,
+                    "voltage_v": 12,
+                    "aim": "downward",
+                },
+            )
 
     # UpperDeckFrontSkirt light (along x)
-    _add_skirt_light(
+    _add_skirt_lights(
         "UpperDeckFrontSkirt",
         ZERO,
-        -cfg.UPPER_DECK_DEPTH - skirt_thickness - light_width,
+        -cfg.UPPER_DECK_DEPTH - skirt_thickness - cfg.DECK_LIGHT_PROJECTION,
         cfg.UPPER_DECK_WIDTH,
-        ZERO + 2 * INCH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="x",
     )
     # UpperDeckLeftSkirt light (along y)
-    _add_skirt_light(
+    _add_skirt_lights(
         "UpperDeckLeftSkirt",
-        -skirt_thickness - light_width,
+        -skirt_thickness - cfg.DECK_LIGHT_PROJECTION,
         -cfg.UPPER_DECK_DEPTH,
         cfg.UPPER_DECK_DEPTH,
-        ZERO + 2 * INCH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
     # UpperDeckRightSkirt light (along y)
-    _add_skirt_light(
+    _add_skirt_lights(
         "UpperDeckRightSkirt",
-        cfg.UPPER_DECK_WIDTH + light_width,
+        cfg.UPPER_DECK_WIDTH + skirt_thickness,
         -cfg.UPPER_DECK_DEPTH,
         cfg.UPPER_DECK_DEPTH,
-        ZERO + 2 * INCH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
     # LowerDeckRightSkirt light (along y)
-    _add_skirt_light(
+    _add_skirt_lights(
         "LowerDeckRightSkirt",
-        lower_x + cfg.LOWER_DECK_WIDTH + light_width,
+        lower_x + cfg.LOWER_DECK_WIDTH + skirt_thickness,
         -cfg.LOWER_DECK_DEPTH,
         cfg.LOWER_DECK_DEPTH,
-        ZERO + 2 * INCH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
     # UpperDeckExtensionRightSkirt light (along y)
-    _add_skirt_light(
+    _add_skirt_lights(
         "UpperDeckExtensionRightSkirt",
-        cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH + light_width,
+        cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH + skirt_thickness,
         -6 * cfg.FOOT,
         6 * cfg.FOOT,
-        ZERO + 2 * INCH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
 
@@ -1161,18 +1273,32 @@ def build_model(context: BuildContext) -> DesignModel:
             center_x = to_mm(start[0]) + dx * ratio
             center_y = to_mm(start[1]) + dy * ratio
             tread_z = to_mm(start_z) - rise * index
-            # Light strip along the riser top edge
-            builder.add_box(
-                "stair",
-                f"{prefix}Light_{index:02d}",
-                width - 2 * INCH,
-                0.5 * INCH,
-                0.25 * INCH,
-                mm(center_x - to_mm(width) / 2 + to_mm(INCH)),
-                mm(center_y - to_mm(0.5 * INCH) / 2),
-                mm(tread_z + to_mm(INCH)),
-                light_color,
-            )
+            lateral_ratios = (0.25, 0.75) if width > cfg.WIDE_STAIR_LIGHT_THRESHOLD else (0.5,)
+            for fixture_index, lateral_ratio in enumerate(lateral_ratios, start=1):
+                builder.add_box(
+                    "stair",
+                    f"{prefix}RiserLight_{index:02d}_{fixture_index:02d}",
+                    cfg.DECK_LIGHT_FACE_WIDTH,
+                    cfg.DECK_LIGHT_PROJECTION,
+                    cfg.DECK_LIGHT_FACE_HEIGHT,
+                    mm(
+                        center_x
+                        - to_mm(width) / 2
+                        + to_mm(width) * lateral_ratio
+                        - to_mm(cfg.DECK_LIGHT_FACE_WIDTH) / 2
+                    ),
+                    mm(center_y - to_mm(cfg.DECK_LIGHT_PROJECTION) / 2),
+                    mm(tread_z + to_mm(INCH)),
+                    light_color,
+                    properties={
+                        "complex_type": "stair_riser_light",
+                        "assembly_role": "low_voltage_step_lighting",
+                        "illuminates": f"complex.stair.{prefix.lower()}_riser_{index:02d}",
+                        "color_temperature_k": 2700,
+                        "voltage_v": 12,
+                        "aim": "downward",
+                    },
+                )
 
     upper_stair_start = (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH / 2, -6 * cfg.FOOT)
     upper_stair_end = (upper_stair_start[0], -6 * cfg.FOOT - 44 * INCH)
@@ -1206,11 +1332,17 @@ def build_model(context: BuildContext) -> DesignModel:
         "UpperDeckExtensionRightSkirt",
         skirt_thickness,
         6 * cfg.FOOT,
-        upper_skirt_height,
+        upper_skirt_height - cfg.LOWER_DECK_ELEVATION,
         cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH,
         -6 * cfg.FOOT,
-        ZERO,
+        cfg.LOWER_DECK_ELEVATION,
         cfg.SKIRTING_COLOR,
+        properties={
+            "complex_type": "deck_skirt_panel",
+            "assembly_role": "deck_enclosure",
+            "adjacent_to": ["complex.stair.upper_straight_*"],
+            "lowest_adjacent_elevation_mm": to_mm(cfg.LOWER_DECK_ELEVATION),
+        },
     )
     rail_segment(
         "ExtBackRail",
@@ -1250,8 +1382,8 @@ def build_model(context: BuildContext) -> DesignModel:
     pool_y = stair_end_y - cfg.DECK_TO_POOL_CLEARANCE - cfg.POOL_WIDTH - cfg.PATIO_BORDER
     pool_length = cfg.POOL_LENGTH
     pool_width = cfg.POOL_WIDTH
-    # Place the leftmost edge of the tile surround at positive x=2.667yd.
-    # The pool begins one tile-border width farther right.
+    # Retain the established left tile edge; the derived pool length makes the
+    # outer edge of the right tile border end at the requested X coordinate.
     pool_x = cfg.POOL_TILE_SURROUND_MIN_X + cfg.PATIO_BORDER
     # 2' tile ground border around the pool.  Modeled as a ring of individual
     # 2' x 2' tile solids (not a single solid slab) so the pool surround reads
@@ -1313,6 +1445,11 @@ def build_model(context: BuildContext) -> DesignModel:
     _tile_run("PoolTileBorderNear", pool_x, pool_y + pool_width, pool_length, axis="x")
     _tile_run("PoolTileBorderFar", pool_x, pool_y - tile_border, pool_length, axis="x")
 
+    # Assemble every turf region into one semantic CAD element. The compound
+    # preserves the hardscape and access cutouts while exporting/selecting as
+    # a single yard-grass object.
+    grass_regions: list[Any] = []
+
     # Grass strip between the lower deck stairs and the pool's near tile
     # border, spanning from tree line (x=0) to the pool surround right edge.
     lower_stair_end_y = -cfg.UPPER_DECK_DEPTH
@@ -1322,17 +1459,13 @@ def build_model(context: BuildContext) -> DesignModel:
     grass_strip_length = pool_surround_right_x - grass_strip_x
     grass_strip_depth = grass_strip_near_y - grass_strip_far_y
     if to_mm(grass_strip_depth) > 0:
-        builder.add_box(
-            "site",
-            "PoolGrassStrip",
-            grass_strip_length,
-            grass_strip_depth,
-            cfg.GRASS_THICKNESS,
-            grass_strip_x,
-            grass_strip_far_y,
-            -cfg.GRASS_THICKNESS,
-            cfg.GRASS_COLOR,
-            drawing_label=True,
+        grass_regions.append(
+            box(
+                grass_strip_length,
+                grass_strip_depth,
+                cfg.GRASS_THICKNESS,
+                origin=(grass_strip_x, grass_strip_far_y, -cfg.GRASS_THICKNESS),
+            )
         )
 
     # Grass south of the pool extends to the shed's far Y edge and across to
@@ -1345,42 +1478,32 @@ def build_model(context: BuildContext) -> DesignModel:
     vehicle_connector_start_y = vehicle_connector_end_y - cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH
     vehicle_connector_end_x = pool_x - tile_border
     if to_mm(pool_south_depth) > 0:
-        builder.add_box(
-            "site",
-            "PoolSouthGrass",
-            cfg.POOL_SOUTH_GRASS_MAX_X - vehicle_connector_end_x,
-            pool_south_depth,
-            cfg.GRASS_THICKNESS,
-            vehicle_connector_end_x,
-            pool_south_start_y,
-            -cfg.GRASS_THICKNESS,
-            cfg.GRASS_COLOR,
+        grass_regions.append(
+            box(
+                cfg.POOL_SOUTH_GRASS_MAX_X - vehicle_connector_end_x,
+                pool_south_depth,
+                cfg.GRASS_THICKNESS,
+                origin=(vehicle_connector_end_x, pool_south_start_y, -cfg.GRASS_THICKNESS),
+            )
         )
-        for name, start_y, depth in (
+        for start_y, depth in (
             (
-                "PoolSouthGrassWestSouth",
                 pool_south_start_y,
                 vehicle_connector_start_y - pool_south_start_y,
             ),
             (
-                "PoolSouthGrassWestNorth",
                 vehicle_connector_end_y,
                 pool_south_far_y - vehicle_connector_end_y,
             ),
         ):
             if to_mm(depth) > 0:
-                builder.add_box(
-                    "site",
-                    name,
-                    vehicle_connector_end_x,
-                    depth,
-                    cfg.GRASS_THICKNESS,
-                    ZERO,
-                    start_y,
-                    -cfg.GRASS_THICKNESS,
-                    cfg.GRASS_COLOR,
-                    parent_id="complex.site.pool_south_grass",
-                    properties={"complex_type": "turf_infill", "assembly_role": "pool_south_grass_infill"},
+                grass_regions.append(
+                    box(
+                        vehicle_connector_end_x,
+                        depth,
+                        cfg.GRASS_THICKNESS,
+                        origin=(ZERO, start_y, -cfg.GRASS_THICKNESS),
+                    )
                 )
 
     # RightGrassExtension occupies only the near/house side of the shared
@@ -1391,54 +1514,49 @@ def build_model(context: BuildContext) -> DesignModel:
     right_grass_near_y = ZERO
     right_grass_depth = right_grass_near_y - right_grass_far_y
     if to_mm(right_grass_depth) > 0:
-        builder.add_box(
-            "site",
-            "RightGrassExtension",
-            right_grass_length,
-            right_grass_depth,
-            cfg.GRASS_THICKNESS,
-            right_grass_x,
-            right_grass_far_y,
-            -cfg.GRASS_THICKNESS,
-            cfg.GRASS_COLOR,
+        grass_regions.append(
+            box(
+                right_grass_length,
+                right_grass_depth,
+                cfg.GRASS_THICKNESS,
+                origin=(right_grass_x, right_grass_far_y, -cfg.GRASS_THICKNESS),
+            )
         )
 
     # Paver field from the shed front at y=-24yd back to the house datum at
     # y=0, spanning from x=-17.117ft to the x=0 axis.
     shed_paver_width = cfg.SHED_PAVER_MAX_X - cfg.SHED_PAVER_MIN_X
     shed_paver_depth = cfg.SHED_PAVER_END_Y - cfg.SHED_PAVER_START_Y
-    builder.add_box(
-        "site",
-        "ShedAccessPavers",
+    shed_access_pavers = box(
         shed_paver_width,
         shed_paver_depth,
         cfg.SHED_PAVER_THICKNESS,
-        cfg.SHED_PAVER_MIN_X,
-        cfg.SHED_PAVER_START_Y,
-        -cfg.SHED_PAVER_THICKNESS,
-        cfg.PAVER_COLOR,
-        properties={
-            "complex_type": "paver_field",
-            "connection": "shed_front_to_y_axis_zero",
-            "surface": "exterior_access_pavers",
-        },
+        origin=(cfg.SHED_PAVER_MIN_X, cfg.SHED_PAVER_START_Y, -cfg.SHED_PAVER_THICKNESS),
     )
-
-    builder.add_box(
-        "site",
-        "VehicleAccessConnector",
+    vehicle_access_connector = box(
         vehicle_connector_end_x,
         cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH,
         cfg.SHED_PAVER_THICKNESS,
-        ZERO,
-        vehicle_connector_start_y,
-        -cfg.SHED_PAVER_THICKNESS,
+        origin=(ZERO, vehicle_connector_start_y, -cfg.SHED_PAVER_THICKNESS),
+    )
+    unified_access_pavers = shed_access_pavers.fuse(vehicle_access_connector)
+    builder.add_shape(
+        "site",
+        "UnifiedShedVehicleAccessPavers",
+        unified_access_pavers,
         cfg.PAVER_COLOR,
+        Dimensions(
+            to_mm(vehicle_connector_end_x - cfg.SHED_PAVER_MIN_X),
+            to_mm(shed_paver_depth),
+            to_mm(cfg.SHED_PAVER_THICKNESS),
+            extras={"vehicle_connector_clear_width_mm": to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH)},
+        ),
         drawing_label=True,
         properties={
-            "complex_type": "vehicle_access_connector",
+            "label": "Unified Shed and Vehicle Access Pavers",
+            "complex_type": "connected_paver_access_assembly",
             "connection": "shed_access_pavers_to_pool_side_yard",
-            "from_element_id": "complex.site.shed_access_pavers",
+            "from_element_id": "complex.shed.yard_storage_shed",
             "to_element_id": "complex.site.pool_tile_border_far_01",
             "clear_width_mm": to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH),
             "location_intent": "shed-near_south_end_of_pool",
@@ -1456,7 +1574,7 @@ def build_model(context: BuildContext) -> DesignModel:
         "complex_type": "ornamental_access_fence",
         "side": "right_when_viewed_house_to_shed",
         "finish": "black_powder_coat",
-        "adjacent_to": "complex.site.shed_access_pavers",
+        "adjacent_to": "complex.site.unified_shed_vehicle_access_pavers",
     }
     builder.add_box(
         "site",
@@ -1522,23 +1640,41 @@ def build_model(context: BuildContext) -> DesignModel:
 
     # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
     # The pool and its tile border occupy
-    # x=POOL_TILE_SURROUND_MIN_X..pool_surround_right_x
+    # x=pool_x-tile_border..pool_surround_right_x
     # in the y range from pool_y-tile_border to pool_y+pool_width+tile_border.
     # The trees at x=0 need grass in that y gap.
     pool_mid_far_y = pool_y - tile_border  # -42ft, top of PoolSouthGrass
     pool_mid_near_y = pool_y + pool_width + tile_border  # -26ft, bottom of PoolGrassStrip
     pool_mid_depth = pool_mid_near_y - pool_mid_far_y
     if to_mm(pool_mid_depth) > 0:
-        builder.add_box(
+        grass_regions.append(
+            box(
+                pool_x - tile_border,
+                pool_mid_depth,
+                cfg.GRASS_THICKNESS,
+                origin=(ZERO, pool_mid_far_y, -cfg.GRASS_THICKNESS),
+            )
+        )
+
+    if grass_regions:
+        unified_grass = grass_regions[0].fuse(*grass_regions[1:])
+        builder.add_shape(
             "site",
-            "PoolMidGrass",
-            pool_x - tile_border,
-            pool_mid_depth,
-            cfg.GRASS_THICKNESS,
-            ZERO,
-            pool_mid_far_y,
-            -cfg.GRASS_THICKNESS,
+            "UnifiedYardGrass",
+            unified_grass,
             cfg.GRASS_COLOR,
+            Dimensions(
+                to_mm(cfg.POOL_SOUTH_GRASS_MAX_X),
+                to_mm(-cfg.SHED_Y),
+                to_mm(cfg.GRASS_THICKNESS),
+                extras={"region_count": len(grass_regions)},
+            ),
+            drawing_label=True,
+            properties={
+                "label": "Unified Yard Grass",
+                "complex_type": "turf_assembly",
+                "assembly_role": "yard_grass_with_hardscape_exclusions",
+            },
         )
 
     # Sloped pool with the deep end on the "reverse" side (left, near the
@@ -1554,7 +1690,7 @@ def build_model(context: BuildContext) -> DesignModel:
         raise ValueError(f"Unsupported POOL_DEEP_END_SIDE: {cfg.POOL_DEEP_END_SIDE!r}; expected 'left' or 'right'")
     builder.add_shape(
         "pool",
-        "PoolWater_34x12_5ftTo8ft",
+        "MainPoolWater_Sloped5ftTo8ft",
         pool,
         cfg.WATER_COLOR,
         Dimensions(
@@ -1566,6 +1702,7 @@ def build_model(context: BuildContext) -> DesignModel:
         placement=(pool_x, pool_y, ZERO),
         drawing_label=True,
         properties={
+            "label": "Main Pool Water — Sloped 5 ft to 8 ft",
             "quantity_provenance": "exact_sloped_geometry",
             "deep_end_side": cfg.POOL_DEEP_END_SIDE,
         },
@@ -1617,18 +1754,42 @@ def build_model(context: BuildContext) -> DesignModel:
             shed_front_y - wall_thickness,
         ),
     ):
-        builder.add_box(
+        wall_shape = box(length, depth, cfg.SHED_WALL_HEIGHT, origin=(x, y, ZERO))
+        opening_for: str | None = None
+        if name == "ShedRightWall":
+            side_door_y = shed_front_y - cfg.SHED_SIDE_DOOR_WIDTH - 18 * INCH
+            wall_shape = wall_shape.cut(
+                box(
+                    wall_thickness,
+                    cfg.SHED_SIDE_DOOR_WIDTH,
+                    cfg.SHED_SIDE_DOOR_HEIGHT,
+                    origin=(x, side_door_y, ZERO),
+                )
+            )
+            opening_for = "complex.shed.shed_side_service_door"
+        elif name == "ShedFrontWall":
+            front_door_x = shed_x + (cfg.SHED_WIDTH - cfg.SHED_FRONT_DOOR_WIDTH) / 2
+            wall_shape = wall_shape.cut(
+                box(
+                    cfg.SHED_FRONT_DOOR_WIDTH,
+                    wall_thickness,
+                    cfg.SHED_FRONT_DOOR_HEIGHT,
+                    origin=(front_door_x, y, ZERO),
+                )
+            )
+            opening_for = "complex.shed.shed_front_double_door"
+        wall_properties: dict[str, Any] = {**shed_common_properties, "assembly_role": "wall"}
+        if opening_for is not None:
+            wall_properties.update({"opening_for": opening_for, "wall_opening": True})
+        builder.add_shape(
             "shed",
             name,
-            length,
-            depth,
-            cfg.SHED_WALL_HEIGHT,
-            x,
-            y,
-            ZERO,
+            wall_shape,
             cfg.SHED_SIDING_COLOR,
+            Dimensions(to_mm(length), to_mm(depth), to_mm(cfg.SHED_WALL_HEIGHT)),
+            placement=(x, y, ZERO),
             parent_id=shed_parent_id,
-            properties={**shed_common_properties, "assembly_role": "wall"},
+            properties=wall_properties,
         )
 
     roof_y = shed_y - cfg.SHED_ROOF_OVERHANG
@@ -1677,11 +1838,35 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.SHED_SIDE_DOOR_WIDTH,
         cfg.SHED_SIDE_DOOR_HEIGHT,
         shed_x + cfg.SHED_WIDTH,
-        shed_front_y - cfg.SHED_SIDE_DOOR_WIDTH - 18 * INCH,
+        side_door_y,
         ZERO,
         cfg.SHED_TRIM_COLOR,
         parent_id=shed_parent_id,
         properties={**shed_common_properties, "assembly_role": "side_service_door"},
+    )
+
+    # Fill the narrow landscape strip between the shed's right wall and the
+    # unified grass at x=0 with rock, while leaving the front paver drive intact.
+    rock_bed_x = shed_x + cfg.SHED_WIDTH
+    rock_bed_width = ZERO - rock_bed_x
+    builder.add_box(
+        "site",
+        "ShedGrassRockBed",
+        rock_bed_width,
+        cfg.SHED_DEPTH,
+        cfg.ROCK_BED_THICKNESS,
+        rock_bed_x,
+        shed_y,
+        -cfg.ROCK_BED_THICKNESS,
+        cfg.ROCK_COLOR,
+        drawing_label=True,
+        properties={
+            "complex_type": "landscape_rock_bed",
+            "assembly_role": "transition_between_shed_and_grass",
+            "from_element_id": "complex.shed.yard_storage_shed",
+            "to_element_id": "complex.site.unified_yard_grass",
+            "surface": "landscape_rock",
+        },
     )
 
     # Evergreen screen along x=0. Tree_06 is intentionally removed to form the
