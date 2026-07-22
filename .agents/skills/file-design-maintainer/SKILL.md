@@ -126,7 +126,7 @@ Invoke `cad-compatibility-verifier` for:
 - HTTP, site, or browser verification
 - suspected upstream package defects
 
-Never invoke `save`.
+Invoke `save` only after the user explicitly asks to commit the changes to Git.
 
 ## Delegation safeguards
 

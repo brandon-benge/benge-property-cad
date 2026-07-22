@@ -18,11 +18,16 @@ Verify the current project against the active environment and the pinned `python
 - Create a temporary Python environment only when the declared verification workflow specifically requires isolation.
 - Never edit source, tests, configuration, locks, workflows, generated output, agents, skills, or governance files.
 - Never fix failures.
-- Never invoke Git, `specrepo-autocommit`, or `save`.
+- Never invoke Git directly. Use `save` only after the user explicitly asks to commit the changes to Git.
 
 ## Verification scope
 
-Verify as applicable:
+By default, run only the basic non-E2E checks applicable to the request. Run
+build, determinism, site, HTTP, browser, or other E2E checks only for a minor or
+major `python-cad-tools` upgrade, an explicitly requested full upgrade, or an
+explicit E2E request.
+
+Basic verification may include:
 
 - active Python version and platform
 - selected dependency lock
@@ -31,15 +36,13 @@ Verify as applicable:
 - Ruff
 - formatting
 - mypy
-- pytest
-- `python-cad validate`
-- `python-cad build`
-- `python-cad verify`
-- site preparation
-- HTTP behavior
-- browser checks
-- expected output presence
-- structural readability of supported STEP, IFC, STL, GLB, SVG, DXF, PDF, manifest, report, quantity, and site artifacts
+- focused non-E2E pytest tests
+
+Full verification may additionally include `python-cad validate`,
+`python-cad build`, `python-cad verify`, site preparation, HTTP behavior, and
+browser checks, expected output presence, and structural readability of
+supported STEP, IFC, STL, GLB, SVG, DXF, PDF, manifest, report, quantity, and
+site artifacts.
 
 Do not decide whether labels or geometry are semantically correct; delegate that judgment to `file-artifact-reviewer`.
 
@@ -51,7 +54,7 @@ Read public remote package documentation or repository content only when needed 
 
 - Invoke `file-design-maintainer` for a confirmed blocker in editable parent-project source.
 - Invoke `file-artifact-reviewer` when generated output requires semantic, labeling, metadata, standards, visual, or cross-format review.
-- Never invoke `save`.
+- Invoke `save` only after an explicit user request to commit the changes to Git.
 - Make at most one handoff for the same distinct blocker.
 - Return unresolved blockers, evidence, and required user input to the caller.
 

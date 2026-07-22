@@ -1,39 +1,31 @@
 ---
 name: save
-description: Persist already-verified repository changes exactly once through specrepo-autocommit after explicit user selection.
-compatibility: opencode
-metadata:
-  repository: benge-property-cad
-  role: persistence
+description: Commit already-verified repository changes through specrepo-autocommit using the OpenCode tool or its command-line fallback, only after the user explicitly asks to commit or save the changes to Git. Use from OpenCode, Claude, or OpenAI environments, but never trigger from inferred intent, task completion, approval, or a generic request to continue.
 ---
 
-# Save Skill
+# Save
 
-## Purpose
+Use this skill from any agent only when the current user message explicitly
+asks to commit the changes to Git. Accept clear equivalents such as "commit
+this," "save these changes to Git," or "run autocommit."
 
-Persist already-verified work after the user explicitly selects the `save`
-agent.
+Do not use this skill when the user merely asks to implement, finish, verify,
+save a file, prepare changes, or says the work looks good. Never infer Git
+persistence from task completion or prior preferences. If Git commit intent is
+ambiguous, do not invoke the tool.
 
-## Preconditions
+Before invocation, require completed implementation and applicable checks plus
+a concise summary. Prefer the `specrepo-autocommit` tool when it is available;
+call it exactly once with the summary and
+`userExplicitlyRequestedGitCommit: true`.
 
-- The user explicitly requested persistence.
-- Implementation is already complete.
-- Required checks and reviews were already performed.
-- A concise summary is available.
+When OpenCode tools are not available, run this exactly once from the
+repository root:
 
-## Restrictions
+```bash
+python3 .opencode/tools/specrepo-autocommit.py "SUMMARY OF VERIFIED CHANGES"
+```
 
-- Do not read or inspect repository files.
-- Do not edit files.
-- Do not run shell commands.
-- Do not invoke Git directly.
-- Do not implement, review, test, or verify.
-- Do not invoke another agent.
-- Do not call `specrepo-autocommit` more than once.
-
-## Procedure
-
-1. Use the supplied summary.
-2. Invoke `specrepo-autocommit` exactly once.
-3. Return the persistence result.
-4. Do nothing else.
+Replace the placeholder with the concise summary. The command-line fallback is
+subject to the same explicit Git-commit requirement. Do not invoke Git directly
+or retry the tool or fallback automatically. Report its result.

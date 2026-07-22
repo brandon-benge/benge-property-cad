@@ -28,9 +28,6 @@ def test_ci_yml_required_jobs():
         "locked-install",
         "static-analysis",
         "model-annotation",
-        "full-build-verify",
-        "determinism-recovery",
-        "site-browser-e2e",
         "boundary-governance",
         "compatibility-report",
         "required-gate",
@@ -39,9 +36,25 @@ def test_ci_yml_required_jobs():
         assert job in text, f"ci.yml missing required job: {job}"
 
 
+def test_regular_ci_excludes_end_to_end_testing():
+    text = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    forbidden = ["test_build_end_to_end.py", "test_viewer_e2e.py", "playwright install"]
+    for value in forbidden:
+        assert value not in text, f"regular CI must not run E2E command: {value}"
+
+
+def test_end_to_end_workflow_is_manual():
+    text = (PROJECT_ROOT / ".github" / "workflows" / "end-to-end.yml").read_text()
+    assert "workflow_dispatch:" in text
+    assert "push:" not in text
+    assert "pull_request:" not in text
+    assert "test_build_end_to_end.py" in text
+    assert "test_viewer_e2e.py" in text
+
+
 def test_actions_pinned_to_sha():
     """Check that third-party actions are pinned to full commit SHAs."""
-    for wf in ["ci.yml", "pages.yml"]:
+    for wf in ["ci.yml", "end-to-end.yml", "pages.yml"]:
         text = (PROJECT_ROOT / ".github" / "workflows" / wf).read_text()
         for match in re.finditer(r"uses:\s+(\S+)(?:@)(\S+)", text):
             action = match.group(1)
@@ -63,7 +76,7 @@ def test_actions_pinned_to_sha():
 
 
 def test_workflow_permissions_least_privilege():
-    for wf in ["ci.yml", "pages.yml"]:
+    for wf in ["ci.yml", "end-to-end.yml", "pages.yml"]:
         text = (PROJECT_ROOT / ".github" / "workflows" / wf).read_text()
         # Must declare permissions at top level
         assert "permissions:" in text, f"{wf} missing top-level permissions block"
@@ -105,8 +118,30 @@ def test_agents_md_has_separation_of_duties():
     assert "file-design-maintainer" in text
     assert "file-artifact-reviewer" in text
     assert "cad-compatibility-verifier" in text
-    assert "save" in text
+    assert "python-cad-tools-upgrader" in text
+    assert "explicitly asks to commit" in text
     assert "Repository boundary" in text
+
+
+def test_ui_tools_and_skills_exist():
+    for name in ["start-ui", "stop-ui", "upgrade-ui"]:
+        assert (PROJECT_ROOT / ".opencode" / "tools" / f"{name}.js").is_file()
+        skill = PROJECT_ROOT / ".agents" / "skills" / name / "SKILL.md"
+        assert skill.is_file()
+        normalized = " ".join(skill.read_text().split())
+        assert "When OpenCode tools are not available" in normalized
+
+
+def test_save_has_no_agent_and_requires_explicit_git_commit():
+    assert not (PROJECT_ROOT / ".agents" / "agents" / "save.md").exists()
+    config = (PROJECT_ROOT / "opencode.jsonc").read_text()
+    assert '"save": {' not in config
+    assert '"specrepo-autocommit": "allow"' in config
+    save_skill = (PROJECT_ROOT / ".agents" / "skills" / "save" / "SKILL.md").read_text()
+    save_tool = (PROJECT_ROOT / ".opencode" / "tools" / "specrepo-autocommit.js").read_text()
+    assert "explicitly asks to commit" in save_skill
+    assert "python3 .opencode/tools/specrepo-autocommit.py" in save_skill
+    assert "userExplicitlyRequestedGitCommit" in save_tool
 
 
 def test_locks_in_requirements_locks():

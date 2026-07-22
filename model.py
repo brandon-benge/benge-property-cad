@@ -1250,13 +1250,9 @@ def build_model(context: BuildContext) -> DesignModel:
     pool_y = stair_end_y - cfg.DECK_TO_POOL_CLEARANCE - cfg.POOL_WIDTH - cfg.PATIO_BORDER
     pool_length = cfg.POOL_LENGTH
     pool_width = cfg.POOL_WIDTH
-    # The pool sits 6ft from the x=0 axis (leaving room for trees along x=0)
-    # and extends to the right edge of the lower deck.  The right tile border
-    # is the outermost element on that side; the left tile border fills the
-    # gap between x=4ft and the pool left edge at x=6ft.
-    lower_deck_right_x = cfg.UPPER_DECK_WIDTH + cfg.LOWER_DECK_WIDTH
-    pool_right_x = lower_deck_right_x - cfg.PATIO_BORDER
-    pool_x = pool_right_x - pool_length
+    # Place the leftmost edge of the tile surround at positive x=2.667yd.
+    # The pool begins one tile-border width farther right.
+    pool_x = cfg.POOL_TILE_SURROUND_MIN_X + cfg.PATIO_BORDER
     # 2' tile ground border around the pool.  Modeled as a ring of individual
     # 2' x 2' tile solids (not a single solid slab) so the pool surround reads
     # as laid tile rather than a monolithic pour.  The left/right strips span
@@ -1266,6 +1262,7 @@ def build_model(context: BuildContext) -> DesignModel:
     tile_size = cfg.POOL_TILE_SIZE
     tile_thickness = 4 * INCH
     tile_z = -tile_thickness
+    pool_surround_right_x = pool_x + pool_length + tile_border
 
     def _tile_run(name_prefix: str, x: Length, y: Length, run_length: Length, *, axis: str) -> None:
         """Lay a single-row strip of 2' x 2' tiles along the given axis."""
@@ -1322,7 +1319,7 @@ def build_model(context: BuildContext) -> DesignModel:
     grass_strip_far_y = pool_y + pool_width + tile_border
     grass_strip_near_y = lower_stair_end_y
     grass_strip_x = ZERO
-    grass_strip_length = lower_deck_right_x - grass_strip_x
+    grass_strip_length = pool_surround_right_x - grass_strip_x
     grass_strip_depth = grass_strip_near_y - grass_strip_far_y
     if to_mm(grass_strip_depth) > 0:
         builder.add_box(
@@ -1388,7 +1385,7 @@ def build_model(context: BuildContext) -> DesignModel:
 
     # RightGrassExtension occupies only the near/house side of the shared
     # boundary.  It stops exactly where PoolSouthGrass begins at y=-42ft.
-    right_grass_x = lower_deck_right_x
+    right_grass_x = pool_surround_right_x
     right_grass_length = cfg.POOL_SOUTH_GRASS_MAX_X - right_grass_x
     right_grass_far_y = pool_south_far_y
     right_grass_near_y = ZERO
@@ -1524,7 +1521,8 @@ def build_model(context: BuildContext) -> DesignModel:
         )
 
     # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
-    # The pool and its tile border occupy x=pool_x-tile_border..lower_deck_right_x
+    # The pool and its tile border occupy
+    # x=POOL_TILE_SURROUND_MIN_X..pool_surround_right_x
     # in the y range from pool_y-tile_border to pool_y+pool_width+tile_border.
     # The trees at x=0 need grass in that y gap.
     pool_mid_far_y = pool_y - tile_border  # -42ft, top of PoolSouthGrass
@@ -1534,7 +1532,7 @@ def build_model(context: BuildContext) -> DesignModel:
         builder.add_box(
             "site",
             "PoolMidGrass",
-            pool_x - tile_border,  # 0 to 4ft (left of the pool tile border)
+            pool_x - tile_border,
             pool_mid_depth,
             cfg.GRASS_THICKNESS,
             ZERO,

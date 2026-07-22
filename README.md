@@ -75,16 +75,20 @@ python-cad clean --project-root PATH
 python-cad prepare-site --project-root PATH --destination PATH --base-path PATH
 ```
 
-CI runs the applicable static analysis, tests, build, verification, and site
-checks with the native lockfile for its environment.
+Regular CI runs locked installation, static analysis, focused contract tests,
+and dependency-boundary checks. Full build, determinism, and browser E2E tests
+are available from GitHub Actions via the manually dispatched
+`File Template CAD End-to-End` workflow.
 
 ## Dependency updates
 
-The project currently allows `python-cad-tools>=0.1.4,<0.2`. When upgrading the
-package, regenerate all four native lockfiles, confirm that they contain no
-local path or source-checkout references, and rerun the full verification
-matrix. This repository must consume the published PyPI package; do not vendor,
-patch, or install `python-cad-tools` from a local checkout.
+The project currently allows `python-cad-tools>=0.1.4,<0.2`. A patch upgrade
+(for example, `0.1.4` to `0.1.5`) gets the basic upgrade smoke checks and does
+not require E2E testing. A minor or major upgrade, or an explicitly requested
+full upgrade, requires the full E2E workflow. Regenerate all four native
+lockfiles and confirm they contain no local path or source-checkout references.
+This repository must consume the published PyPI package; do not vendor, patch,
+or install it from a local checkout.
 
 ## Limitations
 
@@ -95,9 +99,13 @@ licensed-trade approval.
 ## Agent governance
 
 See `AGENTS.md` for repository boundaries, responsibilities, writable scope,
-and verification expectations for the four project roles:
+and verification expectations for the project roles:
 
 - `file-design-maintainer`
 - `file-artifact-reviewer`
 - `cad-compatibility-verifier`
-- `save`
+- `python-cad-tools-upgrader`
+
+Every agent can use the `save` skill, but only after the user explicitly asks
+to commit the changes to Git. The repository also provides `start-ui`,
+`stop-ui`, and `upgrade-ui` tools with matching skills.

@@ -49,25 +49,28 @@ Record before running checks:
 
 Inspect first. Do not replace the current environment automatically.
 
+## Verification depth
+
+Default to basic testing. Run full build, determinism, site, HTTP, browser, or
+other E2E checks only when the user explicitly requests E2E testing or a full
+upgrade, or when `python-cad-tools` changes its minor or major version. A change
+only to the patch component, such as `0.1.4` to `0.1.5`, never requires E2E.
+
 ## Verification sequence
 
 Run only commands supported by the current project.
 
-Typical sequence:
+Typical basic sequence:
 
 ```text
 ruff check config.py model.py drawing_annotations.py tests/
 ruff format --check config.py model.py drawing_annotations.py tests/
 mypy config.py model.py drawing_annotations.py tests/
-python -m pytest -q
-python-cad validate --project-root .
-python-cad build --project-root .
-python-cad verify --project-root .
-python-cad prepare-site --project-root . --destination site --base-path /benge-property-cad/
+python -m pytest -q tests/test_config_contract.py tests/test_drawing_annotations.py tests/test_workflow_policy.py
 ```
 
-Run HTTP and browser checks when the project declares them and prerequisites are
-available.
+For full verification, additionally run the project-declared build,
+validation, verification, determinism, site, HTTP, and browser checks.
 
 ## Artifact structure checks
 
@@ -106,7 +109,7 @@ source.
 Invoke `file-artifact-reviewer` when files are technically valid but require
 semantic, label, metadata, standards, visual, or cross-format review.
 
-Never invoke `save`.
+Invoke `save` only after the user explicitly asks to commit the changes to Git.
 
 ## Machine-readable report
 

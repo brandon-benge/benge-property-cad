@@ -25,5 +25,13 @@ build.py
 start.sh
 site/
 .opencode/node_modules/
-.opencode/commands/
-.opencode/tools/
+.opencode/commands/*
+!.opencode/commands/autocommit.md
+.opencode/tools/*
+!.opencode/tools/.gitkeep
+!.opencode/tools/specrepo-autocommit.js
+!.opencode/tools/specrepo-autocommit.py
+!.opencode/tools/start-ui.js
+!.opencode/tools/stop-ui.js
+!.opencode/tools/upgrade-ui.js
+.opencode/ui-server.pid

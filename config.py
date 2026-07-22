@@ -47,6 +47,8 @@ POOL_DEEP_DEPTH = 8 * FOOT
 POOL_DEEP_END_SIDE = "left"  # left | right
 PATIO_BORDER = 2 * FOOT
 POOL_TILE_SIZE = 2 * FOOT
+# Leftmost edge of the pool tile surround on the positive X axis.
+POOL_TILE_SURROUND_MIN_X = 2.667 * 3 * FOOT
 DECK_TO_POOL_CLEARANCE = 6 * FOOT
 GRASS_THICKNESS = 2 * INCH
 

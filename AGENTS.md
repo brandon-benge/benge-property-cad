@@ -44,11 +44,11 @@ metadata together.
 | `file-design-maintainer` | Implement and test template-design changes | `config.py`, `model.py`, `drawing_annotations.py`, `tests/` |
 | `file-artifact-reviewer` | Review generated outputs and report design-quality findings | Nothing |
 | `cad-compatibility-verifier` | Verify the installed PyPI package, environment, commands, and compatibility | Nothing |
-| `save` | Persist already-verified changes through `specrepo-autocommit` | Only through its dedicated tool |
+| `python-cad-tools-upgrader` | Upgrade the published dependency and apply version-aware testing | `pyproject.toml`, dependency locks |
 
 ## Collaboration
 
-The three working agents may call one another when the receiving agent owns the
+The working agents may call one another when the receiving agent owns the
 next required responsibility:
 
 - `file-design-maintainer` may call `file-artifact-reviewer` to evaluate
@@ -73,7 +73,8 @@ Delegation must be bounded:
    regenerated outputs, or new verification evidence justify one final review.
 4. Return unresolved blockers to the caller rather than repeating a delegation
    cycle.
-5. No working agent may invoke `save`.
+5. Any agent may invoke `save`, but only after the user explicitly asks to
+   commit the changes to Git.
 
 `permission.task` in `opencode.jsonc` is the enforcement layer for model-driven
 delegation. This file describes expected behavior but is not an authorization
@@ -89,7 +90,8 @@ The design maintainer:
 - preserves stable semantic IDs
 - runs applicable tests, build, validation, and verification after changes
 - delegates artifact or compatibility review when needed
-- never invokes Git, `specrepo-autocommit`, or `save`
+- never invokes Git directly and uses `save` only after an explicit user
+  request to commit the changes to Git
 
 When required functionality is unavailable from the installed public package,
 return an upstream `python-cad-tools` requirement with evidence.
@@ -106,7 +108,7 @@ It must not:
 - edit files
 - run shell commands
 - infer implementation details that are not evidenced by generated output
-- invoke `save`
+- invoke `save` without an explicit user request to commit the changes to Git
 
 Classify findings as blocker, important, or advisory. For each finding, report
 the affected artifact and stable IDs, the observed issue, expected result,
@@ -136,7 +138,8 @@ It must not:
 - edit source, tests, configuration, locks, workflows, generated output, agents,
   or governance
 - fix failures during the verification run
-- invoke Git, `specrepo-autocommit`, or `save`
+- invoke Git directly or invoke `save` without an explicit user request to
+  commit the changes to Git
 
 It may read public remote package documentation or repository content only when
 needed to diagnose a package-level blocker. If access, documentation, parent
@@ -144,6 +147,17 @@ repository state, credentials, or source changes are required, it must report
 the exact blocker, evidence, and user input or access needed.
 
 ## Verification expectations
+
+Classify `python-cad-tools` upgrades with semantic versioning. A change only to
+the patch component (for example, `0.1.4` to `0.1.5`) uses basic tests and must
+not run E2E tests. A minor or major change, or a user request for a full
+upgrade, requires E2E testing. E2E testing is also available on demand through
+the manually dispatched `File Template CAD End-to-End` GitHub Actions workflow.
+
+The `python-cad-tools-upgrader` owns dependency upgrades. It must use its skill,
+install only the published package, regenerate applicable locks, and run the
+documented upgrade smoke sequence. It must not run E2E tests for patch-only
+upgrades unless the user explicitly requests them.
 
 Run the checks that apply to the change and current environment. The declared
 project workflow may include:
@@ -165,12 +179,11 @@ environment-specific skipped checks and the reason.
 
 ## Save and persistence
 
-`save` is a separate primary agent selected explicitly by the user.
+`save` is a skill available to every working agent; there is no separate save
+agent. An agent may load it and invoke `specrepo-autocommit` only after the user
+explicitly asks to commit or save the changes to Git. Never infer this intent
+from task completion, approval, a request to continue, or a generic request to
+save a file. The tool requires an explicit confirmation argument and persists
+already-verified changes exactly once using the supplied summary.
 
-No other agent may call it.
-
-Only `save` may invoke `specrepo-autocommit`. It persists already-verified
-changes exactly once using the supplied summary. It must not inspect, implement,
-review, test, verify, or delegate work.
-
-The user decides when work is ready to be persisted.
+The user decides when work is ready to be committed. Agents must not assume it.

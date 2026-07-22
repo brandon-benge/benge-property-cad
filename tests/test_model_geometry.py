@@ -3,7 +3,7 @@
 Covers:
 - 2' tile border ring (individual 2' x 2' tiles, not a solid slab) around the pool
 - pool deep end on the reverse (left) side, shallow end on the right
-- pool and right tile border extend to the lower deck right edge on the x axis
+- leftmost pool tile edge starts at positive x=2.667yd
 - grass strip between the lower deck stairs and the pool
 - fireplace width doubled (4' wide)
 - hot tub deck (lower deck) is 17.5' across
@@ -182,26 +182,22 @@ def test_pool_deep_end_on_reverse_side(copied_project: Path, design_manifest: di
     assert mm is not None
 
 
-# ── Pool and right tile border extend to the lower deck right edge ────────────
+# ── Pool tile surround starts at positive x=2.667yd ─────────────────────────
 
 
-def test_pool_and_right_border_extend_to_lower_deck_edge(copied_project: Path, design_manifest: dict) -> None:
+def test_pool_tile_surround_starts_at_requested_positive_x(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
-    lower_deck_right_x = to_mm(cfg.UPPER_DECK_WIDTH + cfg.LOWER_DECK_WIDTH)
-
     pool = _bounds(design_manifest, "complex.pool.pool_water_34x12_5ft_to8ft")
-    # The pool sits just inside the right tile border, so its right edge is one
-    # border width short of the lower deck right edge.
-    assert pool[3] == pytest.approx(lower_deck_right_x - to_mm(cfg.PATIO_BORDER))
-
-    # The rightmost tile border tile's right edge aligns with the lower deck
-    # right edge.
-    right_tile_ids = sorted(
-        e["id"] for e in design_manifest["elements"] if e["id"].startswith("complex.site.pool_tile_border_right_")
+    left_tile_ids = sorted(
+        e["id"] for e in design_manifest["elements"] if e["id"].startswith("complex.site.pool_tile_border_left_")
     )
-    assert right_tile_ids, "No right tile border tiles found"
-    rightmost = max((_bounds(design_manifest, tid) for tid in right_tile_ids), key=lambda b: b[3])
-    assert rightmost[3] == pytest.approx(lower_deck_right_x)
+    assert left_tile_ids, "No left tile border tiles found"
+    leftmost = min((_bounds(design_manifest, tid) for tid in left_tile_ids), key=lambda b: b[0])
+
+    requested_x = to_mm(2.667 * 3 * FOOT)
+    assert to_mm(cfg.POOL_TILE_SURROUND_MIN_X) == pytest.approx(requested_x)
+    assert leftmost[0] == pytest.approx(requested_x)
+    assert pool[0] == pytest.approx(requested_x + to_mm(cfg.PATIO_BORDER))
 
 
 # ── Grass between the deck and the pool ──────────────────────────────────────
