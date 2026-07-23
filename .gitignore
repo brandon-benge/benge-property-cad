@@ -3,6 +3,7 @@ __pycache__/
 *.egg-info/
 .venv/
 .venv312/
+.venv-local-cad/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -12,6 +13,7 @@ generated/*
 *.FCBak
 *.FCStd
 .tools/
+tools/
 viewer/
 backup/
 .back_agents/

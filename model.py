@@ -24,6 +24,108 @@ TREE_GREEN: Color = (0.0, 0.45, 0.15)
 TREE_BROWN: Color = (0.40, 0.25, 0.10)
 
 
+# Categories whose elements are individually mapped below rather than blanket
+# proxied.  Each element receives the most specific IFC4 class available; only
+# objects with no suitable IFC4 class remain as IfcBuildingElementProxy with an
+# accurate predefined type (ELEMENT or PROVISIONFORVOID) rather than NOTDEFINED.
+IFC_PROXY_CATEGORIES = {"feature", "outdoor-kitchen", "pool", "site"}
+
+
+def _ifc_mapping(category: str, name: str) -> IfcMapping:
+    """Return the most specific IFC4 class and predefined type for an element.
+
+    Every element receives an accurate predefined type from the IFC4 enumeration
+    for its class.  Objects that legitimately have no more specific IFC4 class
+    remain IfcBuildingElementProxy with the ELEMENT or PROVISIONFORVOID
+    predefined type rather than the generic NOTDEFINED fallback.
+    """
+    if category == "deck-board":
+        return IfcMapping("IfcSlab", "FLOOR")
+    if category == "deck-framing":
+        if "Post" in name:
+            return IfcMapping("IfcColumn", "COLUMN")
+        return IfcMapping("IfcBeam", "JOIST" if "Joist" in name else "BEAM")
+    if category == "roof":
+        if "RoofCover" in name:
+            return IfcMapping("IfcRoof", "SHED_ROOF")
+        return IfcMapping("IfcMember", "MEMBER")
+    if category == "roof-framing":
+        if "Rafter" in name:
+            return IfcMapping("IfcMember", "RAFTER")
+        if "Post" in name:
+            return IfcMapping("IfcColumn", "COLUMN")
+        return IfcMapping("IfcBeam", "BEAM")
+    if category == "railing":
+        return IfcMapping("IfcRailing", "GUARDRAIL")
+    if category == "structure":
+        return IfcMapping("IfcSlab", "BASESLAB")
+    if category == "skirting":
+        if "Light" in name:
+            return IfcMapping("IfcLightFixture", "POINTSOURCE")
+        return IfcMapping("IfcCovering", "SKIRTINGBOARD")
+    if category == "stair":
+        if "Light" in name:
+            return IfcMapping("IfcLightFixture", "POINTSOURCE")
+        return IfcMapping("IfcMember", "PLATE")
+    if category == "house":
+        return IfcMapping("IfcWall", "STANDARD")
+    if category == "fireplace":
+        if name in {"FireplaceMasonryBody", "FireplaceChimney"}:
+            return IfcMapping("IfcWall", "STANDARD")
+        if name == "FireplaceMantel":
+            return IfcMapping("IfcMember", "MEMBER")
+        if name == "FireplaceChimneyCap":
+            return IfcMapping("IfcCovering", "ROOFING")
+        # Void opening representations (firebox cavity, flue opening) use the
+        # PROVISIONFORVOID predefined type to indicate they model a void rather
+        # than a physical element.
+        if name in {"FireplaceOpening", "FireplaceFlueHole"}:
+            return IfcMapping("IfcBuildingElementProxy", "PROVISIONFORVOID")
+        # Conceptual or non-building objects (electric glow, TV) remain proxies
+        # with the ELEMENT predefined type.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "shed":
+        if "Door" in name:
+            return IfcMapping("IfcDoor", "DOOR")
+        if "Roof" in name:
+            return IfcMapping("IfcRoof", "GABLE_ROOF")
+        if "Slab" in name or "Floor" in name:
+            return IfcMapping("IfcSlab", "BASESLAB")
+        if "Wall" in name or "Siding" in name:
+            return IfcMapping("IfcWall", "STANDARD")
+        return IfcMapping("IfcMember", "MEMBER")
+    if category == "feature":
+        if name == "SlidingDoor":
+            return IfcMapping("IfcDoor", "DOOR")
+        # Sliding door frame members and meeting rail are mullions.
+        if name.startswith("SlidingDoorFrame") or name == "SlidingDoorMeetingRail":
+            return IfcMapping("IfcMember", "MULLION")
+        # Ceiling fan components and hot tub assemblies have no specific IFC4
+        # class; they remain proxies with the ELEMENT predefined type.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "pool":
+        # Pool water, shells, and entry steps have no specific IFC4 class;
+        # they remain proxies with the ELEMENT predefined type.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "outdoor-kitchen":
+        if "SinkBasin" in name:
+            return IfcMapping("IfcSanitaryTerminal", "SINK")
+        if "Cabinet" in name:
+            return IfcMapping("IfcFurniture", "USERDEFINED")
+        # Faucets, countertops, grills, and cabinet door faces have no specific
+        # IFC4 class; they remain proxies with the ELEMENT predefined type.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "site":
+        # Ornamental fences map to IfcRailing/BALUSTRADE.
+        if "Fence" in name:
+            return IfcMapping("IfcRailing", "BALUSTRADE")
+        # Landscape elements (trees, grass, rock, pavers, tiles, coping) have no
+        # specific IFC4 class; they remain proxies with the ELEMENT predefined
+        # type.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    raise ValueError(f"No IFC mapping defined for {category!r} element {name!r}")
+
+
 def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value).lower()).strip("_")
 
@@ -147,7 +249,7 @@ class ModelBuilder:
             dimensions=dimensions,
             material=self.material(category, color),
             color_rgb=color,
-            ifc_mapping=ifc_mapping or IfcMapping("IfcBuildingElementProxy", "NOTDEFINED"),
+            ifc_mapping=ifc_mapping or _ifc_mapping(category, name),
             storey="Exterior Concept",
             tags={"file-template", _slug(category)},
             properties=values,

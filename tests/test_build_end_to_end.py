@@ -9,6 +9,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree as ET
 
 import ezdxf
@@ -219,24 +220,111 @@ def test_step_reload(built_output) -> None:
     assert len(solids) == len(physical_ids)
 
 
-def test_ifc_parse_and_reconcile(built_output) -> None:
-    ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
-    ifc_validation = _load_json(built_output / "ifc" / "validation.json")
-    assert ifc_validation["valid"] is True
-    proxies = ifc.by_type("IfcBuildingElementProxy")
-    assert len(proxies) > 0
-    design = _load_json(built_output / "manifests" / "design-manifest.json")
-    physical_ids = {e["id"] for e in design["elements"] if e["physical"]}
-    ifc_ids = set()
-    for entity in proxies:
+def _ifc_entities_by_stable_id(elements) -> dict[str, Any]:
+    """Map every IfcElement to its StableId property value."""
+    entities_by_id: dict[str, Any] = {}
+    for entity in elements:
         for rel_def in entity.IsDefinedBy:
             if rel_def.is_a("IfcRelDefinesByProperties"):
                 for prop in rel_def.RelatingPropertyDefinition.HasProperties:
                     if prop.Name == "StableId":
-                        ifc_ids.add(str(prop.NominalValue.wrappedValue))
+                        entities_by_id[str(prop.NominalValue.wrappedValue)] = entity
+    return entities_by_id
+
+
+def _ifc_stable_ids(elements) -> set[str]:
+    ids: set[str] = set()
+    for entity in elements:
+        for rel_def in entity.IsDefinedBy:
+            if rel_def.is_a("IfcRelDefinesByProperties"):
+                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
+                    if prop.Name == "StableId":
+                        ids.add(str(prop.NominalValue.wrappedValue))
+    return ids
+
+
+def test_ifc_parse_and_reconcile(built_output) -> None:
+    ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
+    ifc_validation = _load_json(built_output / "ifc" / "validation.json")
+    assert ifc_validation["valid"] is True
+    elements = ifc.by_type("IfcElement")
+    assert len(elements) > 0
+    design = _load_json(built_output / "manifests" / "design-manifest.json")
+    physical_ids = {e["id"] for e in design["elements"] if e["physical"]}
+    ifc_ids = _ifc_stable_ids(elements)
     assert ifc_ids == physical_ids, (
         f"IFC IDs differ: {len(physical_ids - ifc_ids)} missing, {len(ifc_ids - physical_ids)} extra"
     )
+
+    entities_by_id = _ifc_entities_by_stable_id(elements)
+
+    # Representative mappings covering every IfcElement subclass used by the
+    # model, not only IfcBuildingElementProxy.  Each entry asserts both the IFC
+    # class and the accurate predefined type from the IFC4 enumeration.
+    expected_mappings = {
+        # IfcSlab — deck boards and structural slabs
+        "complex.deck_board.upper_deck_board_01": ("IfcSlab", "FLOOR"),
+        "complex.structure.hot_tub_platform": ("IfcSlab", "BASESLAB"),
+        # IfcMember — rafters, plates, mullions
+        "complex.roof_framing.roof_rafter_01": ("IfcMember", "RAFTER"),
+        "complex.stair.upper_straight_tread_01": ("IfcMember", "PLATE"),
+        "complex.feature.sliding_door_frame_left": ("IfcMember", "MULLION"),
+        # IfcRailing — guardrails and balustrades
+        "complex.railing.upper_straight_left_handrail": ("IfcRailing", "GUARDRAIL"),
+        "complex.site.shed_access_fence": ("IfcRailing", "BALUSTRADE"),
+        # IfcRoof — shed and gable roofs
+        "complex.roof.upper_deck_shed_roof_cover": ("IfcRoof", "SHED_ROOF"),
+        "complex.shed.shed_roof_left_slope": ("IfcRoof", "GABLE_ROOF"),
+        # IfcDoor — circulation doors
+        "complex.feature.sliding_door": ("IfcDoor", "DOOR"),
+        "complex.shed.shed_front_double_door": ("IfcDoor", "DOOR"),
+        # IfcWall — house and shed walls, fireplace masonry
+        "complex.house.house_mass": ("IfcWall", "STANDARD"),
+        "complex.fireplace.fireplace_masonry_body": ("IfcWall", "STANDARD"),
+        # IfcBeam — deck framing beams
+        "complex.deck_framing.upper_front_beam": ("IfcBeam", "BEAM"),
+        # IfcColumn — support posts
+        "complex.deck_framing.upper_support_post_01": ("IfcColumn", "COLUMN"),
+        # IfcCovering — skirting and chimney cap
+        "complex.skirting.upper_deck_front_skirt": ("IfcCovering", "SKIRTINGBOARD"),
+        "complex.fireplace.fireplace_chimney_cap": ("IfcCovering", "ROOFING"),
+        # IfcLightFixture — deck and stair lighting
+        "complex.skirting.upper_deck_front_skirt_light_01": ("IfcLightFixture", "POINTSOURCE"),
+        # IfcSanitaryTerminal — outdoor kitchen sink
+        "complex.outdoor_kitchen.outdoor_kitchen_sink_basin": ("IfcSanitaryTerminal", "SINK"),
+        # IfcFurniture — outdoor kitchen cabinets
+        "complex.outdoor_kitchen.outdoor_kitchen_cabinet_run": ("IfcFurniture", "USERDEFINED"),
+    }
+    for stable_id, (ifc_class, predefined_type) in expected_mappings.items():
+        entity = entities_by_id[stable_id]
+        assert entity.is_a() == ifc_class, f"{stable_id}: expected {ifc_class}, got {entity.is_a()}"
+        assert entity.PredefinedType == predefined_type, (
+            f"{stable_id}: expected {predefined_type}, got {entity.PredefinedType}"
+        )
+
+
+def test_ifc_proxy_elements_use_accurate_predefined_types(built_output) -> None:
+    """Every IfcBuildingElementProxy must use ELEMENT or PROVISIONFORVOID, not NOTDEFINED."""
+    ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
+    elements = ifc.by_type("IfcBuildingElementProxy")
+    assert len(elements) > 0
+    entities_by_id = _ifc_entities_by_stable_id(elements)
+    valid_proxy_types = {"ELEMENT", "PROVISIONFORVOID"}
+    for stable_id, entity in entities_by_id.items():
+        predefined_type = entity.PredefinedType
+        assert predefined_type in valid_proxy_types, (
+            f"{stable_id}: IfcBuildingElementProxy must use one of {valid_proxy_types}, got {predefined_type!r}"
+        )
+
+
+def test_ifc_no_notdefined_predefined_types(built_output) -> None:
+    """No physical element may use NOTDEFINED as its predefined type."""
+    ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
+    elements = ifc.by_type("IfcElement")
+    entities_by_id = _ifc_entities_by_stable_id(elements)
+    for stable_id, entity in entities_by_id.items():
+        predefined_type = entity.PredefinedType
+        assert predefined_type != "NOTDEFINED", f"{stable_id}: predefined type must not be NOTDEFINED"
 
 
 def test_glb_manifest(built_output) -> None:
