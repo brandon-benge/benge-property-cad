@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 import pytest
-from python_cad_tools.units import FOOT, to_mm
+from python_cad_tools.units import FOOT, INCH, to_mm
 
 
 def test_config_dimensions_positive(copied_project) -> None:
@@ -104,21 +104,22 @@ def test_photo_matched_yard_parameters(copied_project) -> None:
     finally:
         sys.path.remove(str(copied_project))
 
-    assert to_mm(cfg.SHED_DEPTH) == 2 * to_mm(10 * FOOT)
+    assert to_mm(cfg.SHED_DEPTH) == 2 * to_mm(12 * FOOT)
     assert to_mm(cfg.SHED_X + cfg.SHED_WIDTH) < 0
-    assert to_mm(cfg.SHED_FRONT_Y) == -to_mm(24 * 3 * FOOT)
+    assert to_mm(cfg.SHED_FRONT_Y) == -to_mm(820 * INCH)
     assert to_mm(cfg.SHED_Y) == to_mm(cfg.SHED_FRONT_Y - cfg.SHED_DEPTH)
     assert to_mm(cfg.SHED_WALL_HEIGHT) > to_mm(cfg.SHED_ROOF_RISE)
     assert to_mm(cfg.SHED_FRONT_DOOR_WIDTH) < to_mm(cfg.SHED_WIDTH)
     assert to_mm(cfg.SHED_FRONT_DOOR_HEIGHT) < to_mm(cfg.SHED_WALL_HEIGHT)
-    assert to_mm(cfg.POOL_SOUTH_GRASS_MAX_X) == pytest.approx(to_mm(16.667 * 3 * FOOT))
-    assert to_mm(cfg.RIGHT_TREE_LINE_X) == pytest.approx(to_mm(16.667 * 3 * FOOT))
+    assert to_mm(cfg.POOL_SOUTH_GRASS_MAX_X) == pytest.approx(to_mm(55 * FOOT))
+    assert to_mm(cfg.PROPERTY_LINE_FENCE_X) == pytest.approx(to_mm(cfg.POOL_SOUTH_GRASS_MAX_X))
+    assert to_mm(cfg.RIGHT_TREE_LINE_X) == pytest.approx(to_mm(54 * FOOT))
     assert to_mm(cfg.RIGHT_TREE_LINE_START_Y) == 0
-    assert to_mm(cfg.RIGHT_TREE_LINE_END_Y) == -to_mm(14 * 3 * FOOT)
+    assert to_mm(cfg.RIGHT_TREE_LINE_END_Y) == -to_mm(12 * 3 * FOOT)
     assert to_mm(cfg.RIGHT_TREE_LINE_SPACING) == to_mm(4 * FOOT)
-    assert to_mm(cfg.SHED_PAVER_MIN_X) == pytest.approx(-to_mm(17.117 * FOOT))
+    assert to_mm(cfg.SHED_PAVER_MIN_X) == pytest.approx(-to_mm(260 * INCH))
     assert to_mm(cfg.SHED_PAVER_MAX_X) == 0
-    assert to_mm(cfg.SHED_PAVER_START_Y) == -to_mm(24 * 3 * FOOT)
+    assert to_mm(cfg.SHED_PAVER_START_Y) == -to_mm(820 * INCH)
     assert to_mm(cfg.SHED_PAVER_END_Y) == 0
     assert to_mm(cfg.SHED_PAVER_THICKNESS) > 0
 

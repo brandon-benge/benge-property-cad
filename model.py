@@ -176,6 +176,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
     ("site", cfg.ROCK_COLOR): ("Landscape Rock", 1650.0),
     ("site", cfg.FENCE_COLOR): ("Black Powder-Coated Aluminum Fence", 2700.0),
+    ("site", cfg.PROPERTY_LINE_FENCE_COLOR): ("White Privacy Fence Panel", 500.0),
     # Vegetation solids are visual landscaping proxies, not material takeoff
     # solids; an unspecified density prevents fabricated construction mass.
     ("site", TREE_GREEN): ("Evergreen Tree (Conceptual)", None),
@@ -570,7 +571,7 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.LOWER_DECK_WIDTH,
         cfg.LOWER_DECK_DEPTH,
         cfg.LOWER_DECK_ELEVATION,
-        "y",
+        "x",
     )
     add_deck_framing(
         "Lower",
@@ -612,7 +613,7 @@ def build_model(context: BuildContext) -> DesignModel:
     # start/end must be at roof_x (left edge), not roof_x + roof_w / 2.
     builder.add_prism(
         "roof",
-        "UpperDeckShedRoofCover",
+        "UpperDeckRoofCover",
         (roof_x, roof_back_y, roof_back_z),
         (roof_x, roof_front_y, roof_front_z),
         roof_w,
@@ -1267,6 +1268,7 @@ def build_model(context: BuildContext) -> DesignModel:
         end_z: Length,
         width: Length = cfg.STAIR_WIDTH,
         left_rail_x_shift: Length = ZERO,
+        axis: str = "y",
     ) -> None:
         dx, dy, run, px, py = line_frame(start, end)
         steps = max(1, math.ceil(abs(to_mm(start_z - end_z)) / to_mm(cfg.MAX_RISER)))
@@ -1275,6 +1277,8 @@ def build_model(context: BuildContext) -> DesignModel:
         direction_y = dy / run
         riser_thickness = 1.25 * INCH
         riser_setback = (to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)) / 2
+        tread_length = width if axis == "y" else cfg.TREAD_DEPTH
+        tread_depth = cfg.TREAD_DEPTH if axis == "y" else width
         for index in range(1, steps + 1):
             ratio = index / steps
             center_x = to_mm(start[0]) + dx * ratio
@@ -1283,25 +1287,27 @@ def build_model(context: BuildContext) -> DesignModel:
             builder.add_box(
                 "stair",
                 f"{prefix}Tread_{index:02d}",
-                width,
-                cfg.TREAD_DEPTH,
+                tread_length,
+                tread_depth,
                 cfg.DECK_BOARD_THICKNESS,
-                mm(center_x - to_mm(width) / 2),
-                mm(center_y - to_mm(cfg.TREAD_DEPTH) / 2),
+                mm(center_x - to_mm(tread_length) / 2),
+                mm(center_y - to_mm(tread_depth) / 2),
                 mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS)),
                 cfg.DECK_COLOR,
             )
 
             riser_center_x = center_x - direction_x * riser_setback
             riser_center_y = center_y - direction_y * riser_setback
+            riser_x_dim = tread_length if axis == "y" else riser_thickness
+            riser_y_dim = riser_thickness if axis == "y" else tread_depth
             builder.add_box(
                 "stair",
                 f"{prefix}Riser_{index:02d}",
-                width,
-                riser_thickness,
+                riser_x_dim,
+                riser_y_dim,
                 mm(abs(rise)),
-                mm(riser_center_x - to_mm(width) / 2),
-                mm(riser_center_y - to_mm(riser_thickness) / 2),
+                mm(riser_center_x - to_mm(riser_x_dim) / 2),
+                mm(riser_center_y - to_mm(riser_y_dim) / 2),
                 mm(min(tread_z, tread_z + rise)),
                 cfg.SKIRTING_COLOR,
             )
@@ -1553,19 +1559,16 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
-    # UpperDeckExtensionRightSkirt light (along y)
-    _add_skirt_lights(
-        "UpperDeckExtensionRightSkirt",
-        cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH + skirt_thickness,
-        -6 * cfg.FOOT,
-        6 * cfg.FOOT,
-        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
-        axis="y",
-    )
 
     # Stair lighting — small light strips on stair tread risers
     def _add_stair_lights(
-        prefix: str, start: Point2, end: Point2, start_z: Length, end_z: Length, width: Length = cfg.STAIR_WIDTH
+        prefix: str,
+        start: Point2,
+        end: Point2,
+        start_z: Length,
+        end_z: Length,
+        width: Length = cfg.STAIR_WIDTH,
+        axis: str = "y",
     ) -> None:
         dx, dy, run, _px, _py = line_frame(start, end)
         steps = max(1, math.ceil(abs(to_mm(start_z - end_z)) / to_mm(cfg.MAX_RISER)))
@@ -1577,19 +1580,34 @@ def build_model(context: BuildContext) -> DesignModel:
             tread_z = to_mm(start_z) - rise * index
             lateral_ratios = (0.25, 0.75) if width > cfg.WIDE_STAIR_LIGHT_THRESHOLD else (0.5,)
             for fixture_index, lateral_ratio in enumerate(lateral_ratios, start=1):
-                builder.add_box(
-                    "stair",
-                    f"{prefix}RiserLight_{index:02d}_{fixture_index:02d}",
-                    cfg.DECK_LIGHT_FACE_WIDTH,
-                    cfg.DECK_LIGHT_PROJECTION,
-                    cfg.DECK_LIGHT_FACE_HEIGHT,
-                    mm(
+                if axis == "y":
+                    light_x = mm(
                         center_x
                         - to_mm(width) / 2
                         + to_mm(width) * lateral_ratio
                         - to_mm(cfg.DECK_LIGHT_FACE_WIDTH) / 2
-                    ),
-                    mm(center_y - to_mm(cfg.DECK_LIGHT_PROJECTION) / 2),
+                    )
+                    light_y = mm(center_y - to_mm(cfg.DECK_LIGHT_PROJECTION) / 2)
+                    light_size_x = cfg.DECK_LIGHT_FACE_WIDTH
+                    light_size_y = cfg.DECK_LIGHT_PROJECTION
+                else:
+                    light_x = mm(center_x - to_mm(cfg.DECK_LIGHT_PROJECTION) / 2)
+                    light_y = mm(
+                        center_y
+                        - to_mm(width) / 2
+                        + to_mm(width) * lateral_ratio
+                        - to_mm(cfg.DECK_LIGHT_FACE_WIDTH) / 2
+                    )
+                    light_size_x = cfg.DECK_LIGHT_PROJECTION
+                    light_size_y = cfg.DECK_LIGHT_FACE_WIDTH
+                builder.add_box(
+                    "stair",
+                    f"{prefix}RiserLight_{index:02d}_{fixture_index:02d}",
+                    light_size_x,
+                    light_size_y,
+                    cfg.DECK_LIGHT_FACE_HEIGHT,
+                    light_x,
+                    light_y,
                     mm(tread_z + to_mm(INCH)),
                     light_color,
                     properties={
@@ -1602,64 +1620,30 @@ def build_model(context: BuildContext) -> DesignModel:
                     },
                 )
 
-    upper_stair_start = (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH / 2, -6 * cfg.FOOT)
-    upper_stair_end = (upper_stair_start[0], -6 * cfg.FOOT - 44 * INCH)
+    # Upper stairs run along the X axis directly off the top deck edge,
+    # replacing the former UpperExtensionDeck.  Positioned at y=-1" so they
+    # sit just below the house wall datum.
+    _upper_stair_steps = max(
+        1, math.ceil(abs(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.LOWER_DECK_ELEVATION)) / to_mm(cfg.MAX_RISER))
+    )
+    upper_stair_start = (cfg.UPPER_DECK_WIDTH, -1 * INCH)
+    upper_stair_end = (cfg.UPPER_DECK_WIDTH + _upper_stair_steps * cfg.TREAD_DEPTH, -1 * INCH)
     _add_stair_lights(
-        "UpperStraight", upper_stair_start, upper_stair_end, cfg.UPPER_DECK_ELEVATION, cfg.LOWER_DECK_ELEVATION
-    )
-    stair_run("UpperStraight", upper_stair_start, upper_stair_end, cfg.UPPER_DECK_ELEVATION, cfg.LOWER_DECK_ELEVATION)
-    add_deck_boards(
-        "UpperExtension",
-        cfg.UPPER_DECK_WIDTH,
-        -6 * cfg.FOOT,
-        cfg.STAIR_WIDTH,
-        6 * cfg.FOOT,
+        "UpperStraight",
+        upper_stair_start,
+        upper_stair_end,
         cfg.UPPER_DECK_ELEVATION,
-        "y",
-    )
-    add_deck_framing(
-        "UpperExtension",
-        cfg.UPPER_DECK_WIDTH,
-        -6 * cfg.FOOT,
-        cfg.STAIR_WIDTH,
-        6 * cfg.FOOT,
-        cfg.UPPER_DECK_ELEVATION,
-        [
-            (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, -6 * cfg.FOOT),
-            (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, -3 * cfg.FOOT),
-        ],
-    )
-    builder.add_box(
-        "skirting",
-        "UpperDeckExtensionRightSkirt",
-        skirt_thickness,
-        6 * cfg.FOOT,
-        upper_skirt_height - cfg.LOWER_DECK_ELEVATION,
-        cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH,
-        -6 * cfg.FOOT,
         cfg.LOWER_DECK_ELEVATION,
-        cfg.SKIRTING_COLOR,
-        properties={
-            "complex_type": "deck_skirt_panel",
-            "assembly_role": "deck_enclosure",
-            "adjacent_to": ["complex.stair.upper_straight_*"],
-            "lowest_adjacent_elevation_mm": to_mm(cfg.LOWER_DECK_ELEVATION),
-        },
+        axis="x",
     )
-    rail_segment(
-        "ExtBackRail",
-        (cfg.UPPER_DECK_WIDTH, ZERO),
-        (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO),
+    stair_run(
+        "UpperStraight",
+        upper_stair_start,
+        upper_stair_end,
         cfg.UPPER_DECK_ELEVATION,
+        cfg.LOWER_DECK_ELEVATION,
+        axis="x",
     )
-    rail_segment(
-        "ExtRightRail",
-        (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO),
-        (cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, upper_stair_start[1]),
-        cfg.UPPER_DECK_ELEVATION,
-    )
-    # Post at the ExtRightRail / ExtBackRail junction corner
-    rail_post("ExtRightPost", cfg.UPPER_DECK_WIDTH + cfg.STAIR_WIDTH, ZERO, cfg.UPPER_DECK_ELEVATION)
 
     # Change 3: Lower deck stairs span full X-axis width of the lower deck.
     # Left handrail/posts shifted to x=25ft to clear UpperDeckRightSkirt.
@@ -1771,8 +1755,9 @@ def build_model(context: BuildContext) -> DesignModel:
         )
 
     # Grass south of the pool extends to the shed's far Y edge and across to
-    # X=16.667yd.  A 10ft-wide connector at the shed-near end of the pool is
-    # kept free of turf so a single vehicle can cross the evergreen screen.
+    # the property line at X=55ft.  The former vehicle-connector paver island
+    # has been removed, so the full area below the pool is now grass (including
+    # the 10ft-wide strip where the connector used to sit).
     pool_south_far_y = pool_y - tile_border
     pool_south_start_y = cfg.SHED_Y
     pool_south_depth = pool_south_far_y - pool_south_start_y
@@ -1788,10 +1773,16 @@ def build_model(context: BuildContext) -> DesignModel:
                 origin=(vehicle_connector_end_x, pool_south_start_y, -cfg.GRASS_THICKNESS),
             )
         )
+        # The former vehicle-connector paver island has been removed; all three
+        # strips (below, at, and above the former connector) are now grass.
         for start_y, depth in (
             (
                 pool_south_start_y,
                 vehicle_connector_start_y - pool_south_start_y,
+            ),
+            (
+                vehicle_connector_start_y,
+                cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH,
             ),
             (
                 vehicle_connector_end_y,
@@ -1825,8 +1816,9 @@ def build_model(context: BuildContext) -> DesignModel:
             )
         )
 
-    # Paver field from the shed front at y=-24yd back to the house datum at
-    # y=0, spanning from x=-17.117ft to the x=0 axis.
+    # Paver field from the shed front at y=-820in back to the house datum at
+    # y=0, spanning from x=-260in to the x=0 axis.  The vehicle connector island
+    # that previously branched toward the pool has been removed.
     shed_paver_width = cfg.SHED_PAVER_MAX_X - cfg.SHED_PAVER_MIN_X
     shed_paver_depth = cfg.SHED_PAVER_END_Y - cfg.SHED_PAVER_START_Y
     shed_access_pavers = box(
@@ -1835,33 +1827,21 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.SHED_PAVER_THICKNESS,
         origin=(cfg.SHED_PAVER_MIN_X, cfg.SHED_PAVER_START_Y, -cfg.SHED_PAVER_THICKNESS),
     )
-    vehicle_access_connector = box(
-        vehicle_connector_end_x,
-        cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH,
-        cfg.SHED_PAVER_THICKNESS,
-        origin=(ZERO, vehicle_connector_start_y, -cfg.SHED_PAVER_THICKNESS),
-    )
-    unified_access_pavers = shed_access_pavers.fuse(vehicle_access_connector)
     builder.add_shape(
         "site",
         "UnifiedShedVehicleAccessPavers",
-        unified_access_pavers,
+        shed_access_pavers,
         cfg.PAVER_COLOR,
         Dimensions(
-            to_mm(vehicle_connector_end_x - cfg.SHED_PAVER_MIN_X),
+            to_mm(shed_paver_width),
             to_mm(shed_paver_depth),
             to_mm(cfg.SHED_PAVER_THICKNESS),
-            extras={"vehicle_connector_clear_width_mm": to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH)},
         ),
         drawing_label=True,
         properties={
             "label": "Unified Shed and Vehicle Access Pavers",
-            "complex_type": "connected_paver_access_assembly",
-            "connection": "shed_access_pavers_to_pool_side_yard",
+            "complex_type": "vehicle_access_paver_field",
             "from_element_id": "complex.shed.yard_storage_shed",
-            "to_element_id": "complex.site.pool_tile_border_far_01",
-            "clear_width_mm": to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH),
-            "location_intent": "shed-near_south_end_of_pool",
             "surface": "exterior_access_pavers",
         },
     )
@@ -1871,7 +1851,11 @@ def build_model(context: BuildContext) -> DesignModel:
     # it does not reduce the existing drive width.
     fence_parent_id = "complex.site.shed_access_fence"
     fence_x = cfg.SHED_PAVER_MIN_X - cfg.SHED_ACCESS_FENCE_POST_SIZE
-    fence_depth = cfg.SHED_PAVER_END_Y - cfg.SHED_PAVER_START_Y
+    # Fence runs from the back of the shed all the way to the house datum (y=0),
+    # extending past the original paver-adjacent span.
+    fence_start_y = cfg.SHED_Y
+    fence_end_y = cfg.SHED_PAVER_END_Y
+    fence_depth = fence_end_y - fence_start_y
     fence_properties = {
         "complex_type": "ornamental_access_fence",
         "side": "right_when_viewed_house_to_shed",
@@ -1885,7 +1869,7 @@ def build_model(context: BuildContext) -> DesignModel:
         fence_depth,
         cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
         fence_x,
-        cfg.SHED_PAVER_START_Y,
+        fence_start_y,
         12 * INCH,
         cfg.FENCE_COLOR,
         drawing_label=True,
@@ -1898,7 +1882,7 @@ def build_model(context: BuildContext) -> DesignModel:
         fence_depth,
         cfg.SHED_ACCESS_FENCE_RAIL_SIZE,
         fence_x,
-        cfg.SHED_PAVER_START_Y,
+        fence_start_y,
         cfg.SHED_ACCESS_FENCE_HEIGHT - 6 * INCH,
         cfg.FENCE_COLOR,
         parent_id=fence_parent_id,
@@ -1907,8 +1891,8 @@ def build_model(context: BuildContext) -> DesignModel:
     fence_post_count = math.ceil(to_mm(fence_depth) / to_mm(cfg.SHED_ACCESS_FENCE_POST_SPACING)) + 1
     for post_index in range(fence_post_count):
         post_y = min(
-            cfg.SHED_PAVER_START_Y + post_index * cfg.SHED_ACCESS_FENCE_POST_SPACING,
-            cfg.SHED_PAVER_END_Y - cfg.SHED_ACCESS_FENCE_POST_SIZE,
+            fence_start_y + post_index * cfg.SHED_ACCESS_FENCE_POST_SPACING,
+            fence_end_y - cfg.SHED_ACCESS_FENCE_POST_SIZE,
         )
         builder.add_box(
             "site",
@@ -1925,7 +1909,7 @@ def build_model(context: BuildContext) -> DesignModel:
         )
     fence_picket_count = math.floor(to_mm(fence_depth) / to_mm(cfg.SHED_ACCESS_FENCE_PICKET_SPACING)) + 1
     for picket_index in range(fence_picket_count):
-        picket_y = cfg.SHED_PAVER_START_Y + picket_index * cfg.SHED_ACCESS_FENCE_PICKET_SPACING
+        picket_y = fence_start_y + picket_index * cfg.SHED_ACCESS_FENCE_PICKET_SPACING
         builder.add_box(
             "site",
             f"ShedAccessFencePicket_{picket_index + 1:03d}",
@@ -1938,6 +1922,65 @@ def build_model(context: BuildContext) -> DesignModel:
             cfg.FENCE_COLOR,
             parent_id=fence_parent_id,
             properties={**fence_properties, "assembly_role": "picket"},
+        )
+
+    # Solid white privacy fence on the right property line at X=55ft.  It runs
+    # from the house datum (y=0) to the back of the unified yard grass (the
+    # shed's far Y edge) and is a single continuous solid panel with no pickets
+    # or gaps, so it cannot be seen through.
+    property_fence_x = cfg.PROPERTY_LINE_FENCE_X
+    property_fence_start_y = cfg.SHED_Y  # back of unified grass / shed
+    property_fence_length = ZERO - property_fence_start_y
+    property_fence_properties = {
+        "complex_type": "solid_privacy_fence",
+        "assembly_role": "property_line_screen",
+        "finish": "white_solid_panel",
+        "opacity": "solid",
+        "see_through": False,
+        "adjacent_to": "complex.site.unified_yard_grass",
+        "side": "right_property_line",
+    }
+    builder.add_box(
+        "site",
+        "PropertyLineSolidFence",
+        cfg.PROPERTY_LINE_FENCE_THICKNESS,
+        property_fence_length,
+        cfg.PROPERTY_LINE_FENCE_HEIGHT,
+        property_fence_x,
+        property_fence_start_y,
+        ZERO,
+        cfg.PROPERTY_LINE_FENCE_COLOR,
+        drawing_label=True,
+        properties=property_fence_properties,
+    )
+
+    # Rock bed between the shed access fence and the shed's left wall, in the
+    # Y region behind the paver field (where the shed sits).  The fence runs
+    # past the shed, and this rock strip fills the gap from the inner edge of
+    # the fence posts out to the shed's left wall.
+    fence_rock_x = fence_x + cfg.SHED_ACCESS_FENCE_POST_SIZE  # paver min x
+    fence_rock_width = cfg.SHED_X - fence_rock_x
+    fence_rock_y = cfg.SHED_Y
+    fence_rock_depth = cfg.SHED_FRONT_Y - cfg.SHED_Y
+    if to_mm(fence_rock_width) > 0 and to_mm(fence_rock_depth) > 0:
+        builder.add_box(
+            "site",
+            "ShedFenceRockBed",
+            fence_rock_width,
+            fence_rock_depth,
+            cfg.ROCK_BED_THICKNESS,
+            fence_rock_x,
+            fence_rock_y,
+            -cfg.ROCK_BED_THICKNESS,
+            cfg.ROCK_COLOR,
+            drawing_label=True,
+            properties={
+                "complex_type": "landscape_rock_bed",
+                "assembly_role": "fence_to_shed_transition",
+                "from_element_id": "complex.site.shed_access_fence",
+                "to_element_id": "complex.shed.yard_storage_shed",
+                "surface": "landscape_rock",
+            },
         )
 
     # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
@@ -2166,12 +2209,19 @@ def build_model(context: BuildContext) -> DesignModel:
             properties=wall_properties,
         )
 
+    # Compute the overhang-edge Z so the roof slope passes through the wall
+    # position (shed_x, shed_wall_top).  At the outer edge of the overhang the
+    # roof is lower than the wall top by the overhang distance times the slope
+    # ratio (rise / half-width).
+    _roof_slope_ratio = float(to_mm(cfg.SHED_ROOF_RISE)) / float(to_mm(cfg.SHED_WIDTH / 2))
+    shed_overhang_drop = cfg.SHED_ROOF_OVERHANG * _roof_slope_ratio
+    shed_eave_z = shed_wall_top - shed_overhang_drop
     roof_y = shed_y - cfg.SHED_ROOF_OVERHANG
     roof_depth = cfg.SHED_DEPTH + 2 * cfg.SHED_ROOF_OVERHANG
     builder.add_prism(
         "shed",
         "ShedRoofLeftSlope",
-        (shed_x - cfg.SHED_ROOF_OVERHANG, roof_y, shed_wall_top),
+        (shed_x - cfg.SHED_ROOF_OVERHANG, roof_y, shed_eave_z),
         (shed_ridge_x, roof_y, shed_ridge_z),
         roof_depth,
         cfg.SHED_ROOF_THICKNESS,
@@ -2183,7 +2233,7 @@ def build_model(context: BuildContext) -> DesignModel:
         "shed",
         "ShedRoofRightSlope",
         (shed_ridge_x, roof_y, shed_ridge_z),
-        (shed_x + cfg.SHED_WIDTH + cfg.SHED_ROOF_OVERHANG, roof_y, shed_wall_top),
+        (shed_x + cfg.SHED_WIDTH + cfg.SHED_ROOF_OVERHANG, roof_y, shed_eave_z),
         roof_depth,
         cfg.SHED_ROOF_THICKNESS,
         cfg.SHED_ROOF_COLOR,
@@ -2267,21 +2317,21 @@ def build_model(context: BuildContext) -> DesignModel:
 
     # Evergreen screen along x=0. Tree_06 is intentionally removed to form the
     # 10ft vehicle opening beside the pool; the two bordering trees are clipped
-    # in depth at the opening, and Tree_11 extends the screen to the shed.
+    # in depth at the opening. Tree_11Foliage was removed; the screen now ends
+    # at Tree_10.
     _tree_trunk_height = cfg.TREE_TRUNK_HEIGHT
     _tree_trunk_radius = cfg.TREE_TRUNK_RADIUS
     _tree_layout = (
-        (1, -24 * FOOT, 6 * FOOT),
-        (2, -28 * FOOT, 6 * FOOT),
-        (3, -32 * FOOT, 6 * FOOT),
-        (4, -36 * FOOT, 6 * FOOT),
-        (5, vehicle_connector_end_y + 1.5 * FOOT, 3 * FOOT),
+        (1, -19 * FOOT, 6 * FOOT),
+        (2, -23 * FOOT, 6 * FOOT),
+        (3, -27 * FOOT, 6 * FOOT),
+        (4, -31 * FOOT, 6 * FOOT),
+        (5, -35 * FOOT, 6 * FOOT),
         # Tree_06 removed for the vehicle opening.
-        (7, vehicle_connector_start_y - 1.5 * FOOT, 3 * FOOT),
+        (7, -54 * FOOT, 6 * FOOT),
         (8, -58 * FOOT, 6 * FOOT),
         (9, -62 * FOOT, 6 * FOOT),
         (10, -66 * FOOT, 6 * FOOT),
-        (11, -70 * FOOT, 6 * FOOT),
     )
     for tree_number, tree_y, lower_foliage_depth in _tree_layout:
         tree_z = ZERO

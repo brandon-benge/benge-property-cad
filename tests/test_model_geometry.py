@@ -69,7 +69,6 @@ def test_deck_skirt_lights_cover_every_perimeter_run(
         "upper_deck_left_skirt": cfg.UPPER_DECK_DEPTH,
         "upper_deck_right_skirt": cfg.UPPER_DECK_DEPTH,
         "lower_deck_right_skirt": cfg.LOWER_DECK_DEPTH,
-        "upper_deck_extension_right_skirt": 6 * FOOT,
     }
     for skirt_name, run_length in skirt_runs.items():
         lights = [
@@ -190,8 +189,8 @@ def test_pool_tile_material_registered(copied_project: Path, design_manifest: di
     assert len(tile_elements) == expected_count
     for element in tile_elements:
         assert element["material_id"] == "material.complex.site.199_204_209"
-    # The removed pool patio does not return; the shed drive and its narrow
-    # vehicle connector export as one paver element.
+    # The removed pool patio does not return; the shed drive pavers export as a
+    # single rectangular paver field (the vehicle connector island was removed).
     paver_elements = [e for e in design_manifest["elements"] if e["material_id"] == "material.complex.site.178_178_173"]
     assert {e["id"] for e in paver_elements} == {"complex.site.unified_shed_vehicle_access_pavers"}
     assert paver_elements[0]["name"] == "UnifiedShedVehicleAccessPavers"
@@ -291,7 +290,7 @@ def test_grass_is_one_semantic_element(copied_project: Path, design_manifest: di
 # ── Photo 1 shed and evergreen screening ────────────────────────────────────
 
 
-def test_shed_is_entirely_negative_x_and_front_starts_at_negative_24_yards(
+def test_shed_is_entirely_negative_x_and_front_starts_at_820_inches(
     copied_project: Path, design_manifest: dict
 ) -> None:
     cfg = _load_config(copied_project)
@@ -299,8 +298,8 @@ def test_shed_is_entirely_negative_x_and_front_starts_at_negative_24_yards(
 
     assert shed[3] < 0.0
     assert shed[0] == pytest.approx(to_mm(cfg.SHED_X))
-    assert shed[4] == pytest.approx(-to_mm(24 * 3 * FOOT))
-    assert shed[1] == pytest.approx(-to_mm(24 * 3 * FOOT) - to_mm(cfg.SHED_DEPTH))
+    assert shed[4] == pytest.approx(-to_mm(820 * INCH))
+    assert shed[1] == pytest.approx(-to_mm(820 * INCH) - to_mm(cfg.SHED_DEPTH))
     assert (shed[3] - shed[0]) == pytest.approx(to_mm(cfg.SHED_WIDTH))
     assert (shed[4] - shed[1]) == pytest.approx(to_mm(cfg.SHED_DEPTH))
 
@@ -327,7 +326,7 @@ def test_shed_has_gable_roof_and_side_door(copied_project: Path, design_manifest
     for wall_id in ("complex.shed.shed_left_wall", "complex.shed.shed_right_wall"):
         wall = _bounds(design_manifest, wall_id)
         assert (wall[4] - wall[1]) == pytest.approx(to_mm(cfg.SHED_DEPTH))
-        assert (wall[4] - wall[1]) == pytest.approx(2 * to_mm(10 * FOOT))
+        assert (wall[4] - wall[1]) == pytest.approx(2 * to_mm(12 * FOOT))
 
 
 def test_doors_do_not_intersect_their_wall_masses(copied_project: Path) -> None:
@@ -380,6 +379,41 @@ def test_rock_bed_fills_strip_between_shed_and_grass(copied_project: Path, desig
     )
 
 
+def test_shed_roof_connects_to_wall_tops(copied_project: Path, design_manifest: dict) -> None:
+    """The roof slope passes through the wall position at wall-top height.
+
+    Before the fix the overhang-edge Z was set to shed_wall_top, which put the
+    roof surface ~5in above the wall top at the wall position.
+    """
+    cfg = _load_config(copied_project)
+    left = _bounds(design_manifest, "complex.shed.shed_roof_left_slope")
+    right = _bounds(design_manifest, "complex.shed.shed_roof_right_slope")
+    # Left roof surface Z at shed_x (left wall outer face) must be at or below
+    # wall top, not above it.  The roof top surface is at bounds[5] (max_z).
+    wall_z = to_mm(cfg.SHED_WALL_HEIGHT)
+    left_roof_top_at_wall_z = left[5] - (left[3] - to_mm(cfg.SHED_X)) * (left[5] - left[2]) / (left[3] - left[0])
+    assert left_roof_top_at_wall_z == pytest.approx(wall_z, abs=to_mm(cfg.SHED_ROOF_THICKNESS))
+    # Right roof surface at shed_x+SHED_WIDTH must also be at wall top.
+    right_roof_top_at_wall_z = right[5] - (to_mm(cfg.SHED_X + cfg.SHED_WIDTH) - right[0]) * (right[5] - right[2]) / (
+        right[3] - right[0]
+    )
+    assert right_roof_top_at_wall_z == pytest.approx(wall_z, abs=to_mm(cfg.SHED_ROOF_THICKNESS))
+
+
+def test_rock_bed_fills_strip_between_fence_and_shed_left_wall(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    rock = _bounds(design_manifest, "complex.site.shed_fence_rock_bed")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
+
+    # Rock sits between the inner edge of the fence posts and the shed left wall.
+    assert rock[0] == pytest.approx(to_mm(cfg.SHED_PAVER_MIN_X))
+    assert rock[3] == pytest.approx(to_mm(cfg.SHED_X))
+    # Rock spans the full Y range behind the pavers (from shed back to shed front).
+    assert rock[1] == pytest.approx(shed[1])
+    assert rock[4] == pytest.approx(shed[4])
+    assert rock[5] - rock[2] == pytest.approx(to_mm(cfg.ROCK_BED_THICKNESS))
+
+
 def test_shed_siding_matches_house_blue_gray(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
     assert cfg.SHED_SIDING_COLOR == cfg.HOUSE_COLOR
@@ -411,7 +445,7 @@ def test_unified_grass_spans_yard_extents(copied_project: Path, design_manifest:
     assert grass[1] == pytest.approx(shed[1])
     assert grass[0] == pytest.approx(0.0)
     assert grass[3] == pytest.approx(to_mm(cfg.POOL_SOUTH_GRASS_MAX_X))
-    assert grass[3] == pytest.approx(to_mm(16.667 * 3 * FOOT))
+    assert grass[3] == pytest.approx(to_mm(55 * FOOT))
     assert grass[4] == pytest.approx(0.0)
 
 
@@ -419,42 +453,35 @@ def test_unified_access_pavers_span_requested_axes(copied_project: Path, design_
     cfg = _load_config(copied_project)
     pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
     shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
-    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
 
-    assert pavers[0] == pytest.approx(-to_mm(17.117 * FOOT))
-    assert pavers[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
+    assert pavers[0] == pytest.approx(-to_mm(260 * INCH))
+    assert pavers[3] == pytest.approx(to_mm(cfg.SHED_PAVER_MAX_X))
+    assert pavers[3] == pytest.approx(0.0)
     assert pavers[1] == pytest.approx(shed[4])
-    assert pavers[1] == pytest.approx(-to_mm(24 * 3 * FOOT))
+    assert pavers[1] == pytest.approx(-to_mm(820 * INCH))
     assert pavers[4] == pytest.approx(0.0)
     assert (pavers[5] - pavers[2]) == pytest.approx(to_mm(cfg.SHED_PAVER_THICKNESS))
-
-
-def test_vehicle_connector_is_tight_ten_foot_route_at_shed_near_pool_end(
-    copied_project: Path, design_manifest: dict
-) -> None:
-    cfg = _load_config(copied_project)
-    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
-    pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
-    assert to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH) == pytest.approx(to_mm(10 * FOOT))
-    assert pavers[3] == pytest.approx(pool[0] - to_mm(cfg.PATIO_BORDER))
-    assert pool[1] - to_mm(cfg.PATIO_BORDER) - to_mm(cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH) > pavers[1]
 
 
 def test_one_tree_removed_for_clear_vehicle_gap_and_screen_reaches_shed(design_manifest: dict) -> None:
     ids = {e["id"] for e in design_manifest["elements"]}
     assert "complex.site.tree_06_trunk" not in ids
     assert not any(element_id.startswith("complex.site.tree_06_foliage_") for element_id in ids)
+    # Tree_11Foliage was removed; the screen ends at Tree_10.
+    assert not any(element_id.startswith("complex.site.tree_11_foliage_") for element_id in ids)
 
-    pool = _bounds(design_manifest, "complex.pool.main_pool_water_sloped5ft_to8ft")
-    connector_end_y = pool[1] - to_mm(2 * FOOT)
-    connector_start_y = connector_end_y - to_mm(10 * FOOT)
-    north_tree = _bounds(design_manifest, "complex.site.tree_05_foliage_1")
-    south_tree = _bounds(design_manifest, "complex.site.tree_07_foliage_1")
-    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
-    last_tree = _bounds(design_manifest, "complex.site.tree_11_foliage_1")
-    assert north_tree[1] == pytest.approx(connector_end_y)
-    assert south_tree[4] == pytest.approx(connector_start_y)
-    assert last_tree[1] <= shed[4]
+    def _center_y(element_id: str) -> float:
+        b = _bounds(design_manifest, element_id)
+        return (b[1] + b[4]) / 2
+
+    # Tree_05 is at y=-35ft.
+    # Tree_07 is now a full-size tree at y=-54ft, 4' from Tree_08 at y=-58ft.
+    assert _center_y("complex.site.tree_05_foliage_1") == pytest.approx(to_mm(-35 * FOOT))
+    assert _center_y("complex.site.tree_07_foliage_1") == pytest.approx(to_mm(-54 * FOOT))
+    assert _center_y("complex.site.tree_08_foliage_1") == pytest.approx(to_mm(-58 * FOOT))
+    assert _center_y("complex.site.tree_07_foliage_1") - _center_y("complex.site.tree_08_foliage_1") == pytest.approx(
+        to_mm(4 * FOOT)
+    )
 
 
 def test_right_boundary_tree_line_has_exact_four_foot_pitch(copied_project: Path, design_manifest: dict) -> None:
@@ -468,7 +495,7 @@ def test_right_boundary_tree_line_has_exact_four_foot_pitch(copied_project: Path
         key=lambda element: element["id"],
     )
 
-    assert len(trunks) == 11
+    assert len(trunks) == 10
     centers = [
         (
             (_bounds(design_manifest, element["id"])[0] + _bounds(design_manifest, element["id"])[3]) / 2,
@@ -479,28 +506,76 @@ def test_right_boundary_tree_line_has_exact_four_foot_pitch(copied_project: Path
     assert all(center[0] == pytest.approx(to_mm(cfg.RIGHT_TREE_LINE_X)) for center in centers)
     assert centers[0][1] == pytest.approx(to_mm(cfg.RIGHT_TREE_LINE_START_Y))
     assert centers[-1][1] >= to_mm(cfg.RIGHT_TREE_LINE_END_Y)
-    assert centers[-1][1] == pytest.approx(-to_mm(40 * FOOT))
     assert all(
         centers[index][1] - centers[index + 1][1] == pytest.approx(to_mm(cfg.RIGHT_TREE_LINE_SPACING))
         for index in range(len(centers) - 1)
     )
 
 
-def test_black_fence_runs_right_side_of_shed_access_pavers(copied_project: Path, design_manifest: dict) -> None:
+def test_black_fence_runs_past_shed_along_right_side_of_pavers(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
     fence = _bounds(design_manifest, "complex.site.shed_access_fence")
     pavers = _bounds(design_manifest, "complex.site.unified_shed_vehicle_access_pavers")
+    shed = _bounds(design_manifest, "complex.shed.yard_storage_shed")
     fence_element = _element_by_id(design_manifest, "complex.site.shed_access_fence")
 
     assert fence[3] <= pavers[0]
-    assert fence[1] == pytest.approx(pavers[1])
+    # Fence now extends from the back of the shed all the way to the house datum.
+    assert fence[1] == pytest.approx(shed[1])
     assert fence[4] == pytest.approx(pavers[4])
+    assert fence[4] == pytest.approx(0.0)
     assert fence_element["material_id"] == "material.complex.site.8_8_9"
     posts = [e for e in design_manifest["elements"] if e["id"].startswith("complex.site.shed_access_fence_post_")]
     assert posts
     assert max(_bounds(design_manifest, e["id"])[5] for e in posts) == pytest.approx(
         to_mm(cfg.SHED_ACCESS_FENCE_HEIGHT)
     )
+
+
+def test_white_solid_property_line_fence_spans_grass_back_to_house(copied_project: Path, design_manifest: dict) -> None:
+    cfg = _load_config(copied_project)
+    fence = _bounds(design_manifest, "complex.site.property_line_solid_fence")
+    fence_element = _element_by_id(design_manifest, "complex.site.property_line_solid_fence")
+    grass = _bounds(design_manifest, "complex.site.unified_yard_grass")
+
+    # Sits on the property line at X=55ft, on the grass edge.
+    assert fence[0] == pytest.approx(to_mm(cfg.PROPERTY_LINE_FENCE_X))
+    assert fence[3] == pytest.approx(to_mm(cfg.PROPERTY_LINE_FENCE_X + cfg.PROPERTY_LINE_FENCE_THICKNESS))
+    # Spans Y from the back of the unified grass to the house datum (y=0).
+    assert fence[1] == pytest.approx(grass[1])
+    assert fence[4] == pytest.approx(0.0)
+    # Solid panel: a single continuous solid element (no picket sub-elements).
+    assert fence[5] - fence[2] == pytest.approx(to_mm(cfg.PROPERTY_LINE_FENCE_HEIGHT))
+    pickets = [
+        e for e in design_manifest["elements"] if e["id"].startswith("complex.site.property_line_solid_fence_picket_")
+    ]
+    assert not pickets
+    # White material is distinct from the black ornamental shed-access fence.
+    assert fence_element["material_id"] != "material.complex.site.8_8_9"
+    rgb = "_".join(str(round(channel * 255)) for channel in cfg.PROPERTY_LINE_FENCE_COLOR)
+    assert fence_element["material_id"] == f"material.complex.site.{rgb}"
+
+    # Semantic metadata comes from the built design model (not the manifest).
+    import sys
+
+    from python_cad_tools.context import BuildContext
+
+    sys.path.insert(0, str(copied_project))
+    for mod in list(sys.modules):
+        if mod in ("config", "model", "drawing_annotations"):
+            del sys.modules[mod]
+    try:
+        import model as model_mod
+
+        design = model_mod.build_model(
+            BuildContext(project_root=copied_project, config=cfg, source_revision="test", source_dirty=False)
+        )
+    finally:
+        sys.path.remove(str(copied_project))
+    model_fence = next(e for e in design.elements if e.id == "complex.site.property_line_solid_fence")
+    assert model_fence.properties["complex_type"] == "solid_privacy_fence"
+    assert model_fence.properties["see_through"] is False
+    assert model_fence.properties["opacity"] == "solid"
 
 
 # ── Fireplace 3' wide (x) × 8' deep (y) ─────────────────────────────────────
@@ -640,17 +715,17 @@ def test_upper_access_panel_is_past_mid_beam_and_has_matching_skirt_opening(
 # ── Top (upper) deck extends 20' from the house toward the pool ──────────────
 
 
-def test_upper_deck_depth_twenty_feet(copied_project: Path) -> None:
+def test_upper_deck_depth_sixteen_feet(copied_project: Path) -> None:
     cfg = _load_config(copied_project)
-    assert to_mm(cfg.UPPER_DECK_DEPTH) == pytest.approx(to_mm(20 * FOOT))
+    assert to_mm(cfg.UPPER_DECK_DEPTH) == pytest.approx(to_mm(16 * FOOT))
 
 
-def test_upper_deck_front_skirt_at_twenty_feet(copied_project: Path, design_manifest: dict) -> None:
+def test_upper_deck_front_skirt_at_sixteen_feet(copied_project: Path, design_manifest: dict) -> None:
     cfg = _load_config(copied_project)
     skirt = _bounds(design_manifest, "complex.skirting.upper_deck_front_skirt")
-    # Front skirt near edge (max_y) sits at y = -UPPER_DECK_DEPTH (20' from house).
+    # Front skirt near edge (max_y) sits at y = -UPPER_DECK_DEPTH (16' from house).
     assert skirt[4] == pytest.approx(-to_mm(cfg.UPPER_DECK_DEPTH))
-    assert skirt[4] == pytest.approx(-to_mm(20 * FOOT))
+    assert skirt[4] == pytest.approx(-to_mm(16 * FOOT))
 
 
 def test_upper_right_skirts_stop_at_adjacent_deck_and_stair_elevations(
@@ -658,13 +733,10 @@ def test_upper_right_skirts_stop_at_adjacent_deck_and_stair_elevations(
 ) -> None:
     cfg = _load_config(copied_project)
     upper_right = _bounds(design_manifest, "complex.skirting.upper_deck_right_skirt")
-    extension_right = _bounds(design_manifest, "complex.skirting.upper_deck_extension_right_skirt")
 
     assert upper_right[2] == pytest.approx(to_mm(cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE))
     assert upper_right[2] > 0.0
-    assert extension_right[2] == pytest.approx(to_mm(cfg.LOWER_DECK_ELEVATION))
     assert upper_right[5] == pytest.approx(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS))
-    assert extension_right[5] == pytest.approx(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.DECK_THICKNESS))
 
     from python_cad_tools.context import BuildContext
 
@@ -683,9 +755,8 @@ def test_upper_right_skirts_stop_at_adjacent_deck_and_stair_elevations(
 
     assert skirt.geometry.volume < full_bounding_box_volume
     assert skirt.properties["complex_type"] == "profiled_deck_skirt"
-    assert elements["complex.skirting.upper_deck_extension_right_skirt"].properties["complex_type"] == (
-        "deck_skirt_panel"
-    )
+    # UpperDeckExtensionRightSkirt was removed when the UpperExtensionDeck was
+    # replaced by the rotated upper stairs.
 
 
 # ── Stair risers line up with the back of the step ───────────────────────────
@@ -711,21 +782,26 @@ def test_risers_sit_on_tread_top(design_manifest: dict, prefix: str, count: int)
 
 
 @pytest.mark.parametrize(
-    "prefix, count",
+    "prefix, count, axis",
     [
-        ("upper_straight", 4),
-        ("lower_front", 5),
+        ("upper_straight", 4, "x"),
+        ("lower_front", 5, "y"),
     ],
 )
-def test_riser_at_back_of_tread(design_manifest: dict, prefix: str, count: int) -> None:
+def test_riser_at_back_of_tread(design_manifest: dict, prefix: str, count: int, axis: str) -> None:
     for index in range(1, count + 1):
         tread = _bounds(design_manifest, f"complex.stair.{prefix}_tread_{index:02d}")
         riser = _bounds(design_manifest, f"complex.stair.{prefix}_riser_{index:02d}")
-        # The riser's back face must align with the tread's back edge.  Because
-        # the stair runs along -y, the "back" (toward the upper landing) is the
-        # larger y value (max_y, index 4) of each element.
-        tread_back_y = tread[4]
-        riser_back_y = riser[4]
-        assert riser_back_y == pytest.approx(tread_back_y), (
-            f"{prefix} step {index}: riser back {riser_back_y} != tread back {tread_back_y}"
+        if axis == "x":
+            # Stairs run along +X; the back (toward the upper landing) is the
+            # smaller X value (min_x, bounds[0]).
+            tread_back = tread[0]
+            riser_back = riser[0]
+        else:
+            # Stairs run along -Y; the back (toward the upper landing) is the
+            # larger Y value (max_y, bounds[4]).
+            tread_back = tread[4]
+            riser_back = riser[4]
+        assert riser_back == pytest.approx(tread_back), (
+            f"{prefix} step {index}: riser back {riser_back} != tread back {tread_back}"
         )

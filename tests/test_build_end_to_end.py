@@ -272,8 +272,9 @@ def test_ifc_parse_and_reconcile(built_output) -> None:
         # IfcRailing — guardrails and balustrades
         "complex.railing.upper_straight_left_handrail": ("IfcRailing", "GUARDRAIL"),
         "complex.site.shed_access_fence": ("IfcRailing", "BALUSTRADE"),
+        "complex.site.property_line_solid_fence": ("IfcRailing", "BALUSTRADE"),
         # IfcRoof — shed and gable roofs
-        "complex.roof.upper_deck_shed_roof_cover": ("IfcRoof", "SHED_ROOF"),
+        "complex.roof.upper_deck_roof_cover": ("IfcRoof", "SHED_ROOF"),
         "complex.shed.shed_roof_left_slope": ("IfcRoof", "GABLE_ROOF"),
         # IfcDoor — circulation doors
         "complex.feature.sliding_door": ("IfcDoor", "DOOR"),

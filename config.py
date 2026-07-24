@@ -5,9 +5,9 @@ from python_cad_tools.units import FOOT, INCH, MM
 PROJECT_NAME = "File Template"
 
 UPPER_DECK_WIDTH = 24.5 * FOOT
-UPPER_DECK_DEPTH = 20 * FOOT
+UPPER_DECK_DEPTH = 16 * FOOT
 LOWER_DECK_WIDTH = 17.5 * FOOT
-LOWER_DECK_DEPTH = 15 * FOOT
+LOWER_DECK_DEPTH = 12 * FOOT
 LOWER_DECK_ELEVATION = 32 * INCH
 UPPER_DECK_ELEVATION = LOWER_DECK_ELEVATION + 28 * INCH
 DECK_THICKNESS = 6 * INCH
@@ -72,34 +72,38 @@ GRASS_THICKNESS = 2 * INCH
 ROCK_BED_THICKNESS = 3 * INCH
 
 # Corrected property coordinates: the shed lies wholly on the negative-X side.
-# Its near/front edge starts at -24 yards on Y and the shed extends farther
-# away from the house toward negative Y.
-SHED_WIDTH = 14 * FOOT
-SHED_DEPTH = 20 * FOOT
+# Its near/front edge starts at -820in on Y and the shed extends farther away
+# from the house toward negative Y.
+SHED_WIDTH = 12 * FOOT
+SHED_DEPTH = 24 * FOOT
 SHED_WALL_HEIGHT = 8 * FOOT
 SHED_ROOF_RISE = 3 * FOOT
 SHED_ROOF_OVERHANG = 12 * INCH
 SHED_ROOF_THICKNESS = 4 * INCH
 SHED_SLAB_THICKNESS = 4 * INCH
 SHED_X = -16 * FOOT
-SHED_FRONT_Y = -24 * 3 * FOOT
+SHED_FRONT_Y = -820 * INCH
 SHED_Y = SHED_FRONT_Y - SHED_DEPTH
 SHED_FRONT_DOOR_WIDTH = 8 * FOOT
 SHED_FRONT_DOOR_HEIGHT = 7 * FOOT
 SHED_SIDE_DOOR_WIDTH = 3 * FOOT
 SHED_SIDE_DOOR_HEIGHT = 6.5 * FOOT
 
-POOL_SOUTH_GRASS_MAX_X = 16.667 * 3 * FOOT
+# Unified yard grass extends across the positive-X yard to the property line
+# at X=55ft, and the solid white privacy fence stands on that same line.
+POOL_SOUTH_GRASS_MAX_X = 55 * FOOT
 
 # Evergreen tree line on the positive-X side of the yard.  Tree centers start
 # at y=0 and continue toward negative Y at an exact 4ft pitch; the final center
 # is the last pitch point that remains within the -14yd limit.
-RIGHT_TREE_LINE_X = 16.667 * 3 * FOOT
+RIGHT_TREE_LINE_X = 54 * FOOT
 RIGHT_TREE_LINE_START_Y = 0 * FOOT
-RIGHT_TREE_LINE_END_Y = -14 * 3 * FOOT
+RIGHT_TREE_LINE_END_Y = -12 * 3 * FOOT
 RIGHT_TREE_LINE_SPACING = 4 * FOOT
 
-SHED_PAVER_MIN_X = -17.117 * FOOT
+# Paver field extends 260in off the x-axis on the shed (negative-X) side,
+# running from the shed front back to the house datum at y=0.
+SHED_PAVER_MIN_X = -260 * INCH
 SHED_PAVER_MAX_X = 0 * FOOT
 SHED_PAVER_START_Y = SHED_FRONT_Y
 SHED_PAVER_END_Y = 0 * FOOT
@@ -117,6 +121,14 @@ SHED_ACCESS_FENCE_POST_SIZE = 2 * INCH
 SHED_ACCESS_FENCE_RAIL_SIZE = 1.5 * INCH
 SHED_ACCESS_FENCE_POST_SPACING = 6 * FOOT
 SHED_ACCESS_FENCE_PICKET_SPACING = 12 * INCH
+
+# Solid white privacy fence on the right property line at X=55ft, spanning
+# from the house datum (y=0) to the back of the unified yard grass.  It is a
+# single solid panel (no pickets or gaps) so it cannot be seen through.
+PROPERTY_LINE_FENCE_X = POOL_SOUTH_GRASS_MAX_X
+PROPERTY_LINE_FENCE_HEIGHT = 6 * FOOT
+PROPERTY_LINE_FENCE_THICKNESS = 2 * INCH
+PROPERTY_LINE_FENCE_COLOR = (0.92, 0.92, 0.92)
 
 HOT_TUB_WIDTH = 8 * FOOT
 HOT_TUB_DEPTH = 8 * FOOT

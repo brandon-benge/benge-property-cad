@@ -222,10 +222,23 @@ environment-specific skipped checks and the reason.
 ## Save and persistence
 
 `save` is a skill available to every working agent; there is no separate save
-agent. An agent may load it and invoke `specrepo-autocommit` only after the user
-explicitly asks to commit or save the changes to Git. Never infer this intent
-from task completion, approval, a request to continue, or a generic request to
-save a file. The tool requires an explicit confirmation argument and persists
-already-verified changes exactly once using the supplied summary.
+agent. An agent may load it only after the user explicitly asks to commit or
+save the changes to Git. Never infer this intent from task completion,
+approval, a request to continue, or a generic request to save a file.
+
+`specrepo-autocommit` performs automated commits and is only trusted inside a
+real Git checkout on the user's local machine. Before invoking it, the agent
+must confirm the working directory is a Git checkout
+(`git rev-parse --is-inside-work-tree`) and that the environment is the user's
+local machine, not an isolated, sandboxed, ephemeral, containerized, or remote
+runner environment. When those conditions hold, the agent may invoke
+`specrepo-autocommit` (or its command-line fallback) exactly once with the
+supplied summary and explicit confirmation argument.
+
+When the environment is not trusted, the agent must not invoke
+`specrepo-autocommit` or its fallback. Instead it commits with plain Git
+commands (`git add -A` and `git commit -m "..."`) exactly once from the
+repository root. It must not push, amend, force, or retry automatically, and
+must not fall back to `specrepo-autocommit` from an untrusted environment.
 
 The user decides when work is ready to be committed. Agents must not assume it.
