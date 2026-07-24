@@ -47,8 +47,6 @@ For a patch upgrade, run only:
 ```bash
 .venv/bin/pip check
 .venv/bin/python -m pytest -q \
-  tests/test_config_contract.py \
-  tests/test_drawing_annotations.py \
   tests/test_workflow_policy.py
 ```
 

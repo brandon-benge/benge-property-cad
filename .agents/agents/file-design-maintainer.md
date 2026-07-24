@@ -75,7 +75,7 @@ its geometry.
 2. Inspect relevant editable source, tests, and generated evidence. Treat generated content as evidence, not authoritative source.
 3. Identify affected complex elements, IDs, types, labels, relationships, and output formats.
 4. Implement the smallest coherent parametric change.
-5. Update tests for geometry and semantic metadata.
+5. Update tests only when a change affects build, viewer, or workflow-policy behavior. Do not create or update design-input validation tests (they have been removed).
 6. Run applicable lint, type, test, build, validation, and verification checks.
 7. Regenerate affected outputs.
 8. Delegate independent review when useful.

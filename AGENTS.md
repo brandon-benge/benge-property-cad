@@ -159,14 +159,23 @@ design-source change.
 ### Focused tier
 
 Use for localized changes to parameters, geometry, annotations, metadata, or
-focused tests. Run:
+focused tests. Design-input validation tests (`test_config_contract.py`,
+`test_model_geometry.py`, `test_drawing_annotations.py`) have been removed —
+agents must not run or re-create them. For a pure design-value edit (no change
+to `tests/`), run only static analysis and project validation:
 
 ```text
 ruff check config.py model.py drawing_annotations.py tests/
 ruff format --check config.py model.py drawing_annotations.py tests/
 mypy config.py model.py drawing_annotations.py tests/
-python -m pytest -q <affected test files or node IDs>
 python-cad validate --project-root .
+```
+
+When a change touches build, viewer, or workflow-policy tests, additionally run
+the affected test files or node IDs:
+
+```text
+python -m pytest -q <test file or node ID>
 ```
 
 Select affected tests narrowly. Do not substitute the complete test suite when

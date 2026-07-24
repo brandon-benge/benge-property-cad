@@ -1621,13 +1621,16 @@ def build_model(context: BuildContext) -> DesignModel:
                 )
 
     # Upper stairs run along the X axis directly off the top deck edge,
-    # replacing the former UpperExtensionDeck.  Positioned at y=-1" so they
-    # sit just below the house wall datum.
+    # replacing the former UpperExtensionDeck.  The stair centerline is offset
+    # by half the stair width so the near (house-side) edge sits exactly on the
+    # y=0 house wall datum; the full stair run then lies on the deck rather than
+    # straddling the wall.
     _upper_stair_steps = max(
         1, math.ceil(abs(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.LOWER_DECK_ELEVATION)) / to_mm(cfg.MAX_RISER))
     )
-    upper_stair_start = (cfg.UPPER_DECK_WIDTH, -1 * INCH)
-    upper_stair_end = (cfg.UPPER_DECK_WIDTH + _upper_stair_steps * cfg.TREAD_DEPTH, -1 * INCH)
+    _upper_stair_y = -cfg.STAIR_WIDTH / 2
+    upper_stair_start = (cfg.UPPER_DECK_WIDTH, _upper_stair_y)
+    upper_stair_end = (cfg.UPPER_DECK_WIDTH + _upper_stair_steps * cfg.TREAD_DEPTH, _upper_stair_y)
     _add_stair_lights(
         "UpperStraight",
         upper_stair_start,
@@ -2462,11 +2465,14 @@ def build_model(context: BuildContext) -> DesignModel:
         (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH),
         cfg.UPPER_DECK_ELEVATION,
     )
-    # StairSideRail connects UpperPost_R to UpperStraightLeftPost_Top
+    # StairSideRail connects UpperPost_R to UpperStraightLeftPost_Top.  The
+    # rail terminates at the stair's deck-side edge (the Left post), which is
+    # one half stair width in from the centerline, so it does not cross the
+    # stair opening.
     rail_segment(
         "StairSideRail",
         (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH),
-        (cfg.UPPER_DECK_WIDTH, upper_stair_start[1]),
+        (cfg.UPPER_DECK_WIDTH, upper_stair_start[1] - cfg.STAIR_WIDTH / 2),
         cfg.UPPER_DECK_ELEVATION,
     )
     rail_segment("LeftEdgeRail", (ZERO, -cfg.FIREPLACE_DEPTH), (ZERO, -cfg.UPPER_DECK_DEPTH), cfg.UPPER_DECK_ELEVATION)

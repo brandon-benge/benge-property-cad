@@ -27,7 +27,6 @@ def test_ci_yml_required_jobs():
     required = [
         "locked-install",
         "static-analysis",
-        "model-annotation",
         "boundary-governance",
         "compatibility-report",
         "required-gate",

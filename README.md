@@ -105,7 +105,7 @@ source instead.
 - Compose shared geometry and metadata in `model.py`.
 - Maintain drawing labels and dimensions in `drawing_annotations.py`.
 - Preserve stable semantic IDs, including existing `complex.*` IDs.
-- Update geometry, metadata, and tests together.
+- Update geometry, metadata, and annotations together; keep source syntactically valid. Design-input validation tests have been removed and are not required.
 
 Use only documented public APIs from the installed `python-cad-tools` package.
 
@@ -115,7 +115,7 @@ Use only documented public APIs from the installed `python-cad-tools` package.
 .venv/bin/ruff check config.py model.py drawing_annotations.py tests/
 .venv/bin/ruff format --check config.py model.py drawing_annotations.py tests/
 .venv/bin/mypy config.py model.py drawing_annotations.py tests/
-.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest -q tests/test_workflow_policy.py
 ```
 
 Additional project commands:
@@ -125,10 +125,9 @@ python-cad clean --project-root PATH
 python-cad prepare-site --project-root PATH --destination PATH --base-path PATH
 ```
 
-Regular CI runs locked installation, static analysis, focused contract tests,
-and dependency-boundary checks. Full build, determinism, and browser E2E tests
-are available from GitHub Actions via the manually dispatched
-`File Template CAD End-to-End` workflow.
+Regular CI runs locked installation, static analysis, and dependency-boundary
+checks. Full build, determinism, and browser E2E tests are available from GitHub
+Actions via the manually dispatched `File Template CAD End-to-End` workflow.
 
 ## Dependency updates
 

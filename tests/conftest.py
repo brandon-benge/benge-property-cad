@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
-from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -74,11 +72,6 @@ def build_result(session_project: Path) -> BuildResult:
 
 
 @pytest.fixture(scope="session")
-def built_project(build_result: BuildResult) -> Path:
-    return build_result.project_root
-
-
-@pytest.fixture(scope="session")
 def built_output(build_result: BuildResult) -> Path:
     return build_result.output_root
 
@@ -91,16 +84,3 @@ def build_manifest(built_output: Path) -> dict:
 @pytest.fixture(scope="session")
 def design_manifest(built_output: Path) -> dict:
     return json.loads((built_output / "manifests" / "design-manifest.json").read_text(encoding="utf-8"))
-
-
-@pytest.fixture
-def project_import(copied_project: Path) -> Generator[None, None, None]:
-    sys.path.insert(0, str(copied_project))
-    prefixes = ("config.", "model.", "drawing_annotations.")
-    for mod in list(sys.modules):
-        if mod in ("config", "model", "drawing_annotations") or any(mod.startswith(p) for p in prefixes):
-            del sys.modules[mod]
-    try:
-        yield
-    finally:
-        sys.path.remove(str(copied_project))

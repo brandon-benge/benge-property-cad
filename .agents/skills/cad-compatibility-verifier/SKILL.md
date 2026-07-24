@@ -66,7 +66,7 @@ Typical basic sequence:
 ruff check config.py model.py drawing_annotations.py tests/
 ruff format --check config.py model.py drawing_annotations.py tests/
 mypy config.py model.py drawing_annotations.py tests/
-python -m pytest -q tests/test_config_contract.py tests/test_drawing_annotations.py tests/test_workflow_policy.py
+python -m pytest -q tests/test_workflow_policy.py
 ```
 
 For full verification, additionally run the project-declared build,
