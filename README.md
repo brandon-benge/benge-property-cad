@@ -105,7 +105,7 @@ source instead.
 - Compose shared geometry and metadata in `model.py`.
 - Maintain drawing labels and dimensions in `drawing_annotations.py`.
 - Preserve stable semantic IDs, including existing `complex.*` IDs.
-- Update geometry, metadata, and annotations together; keep source syntactically valid. Design-input validation tests have been removed and are not required.
+- Update geometry, metadata, and annotations together; keep source syntactically valid. Design-input validation tests have been removed and are not required. Agents must not update model-specific test assertions (IFC mappings, element IDs, annotation content, dimensions, positions, materials) in any test file.
 
 Use only documented public APIs from the installed `python-cad-tools` package.
 

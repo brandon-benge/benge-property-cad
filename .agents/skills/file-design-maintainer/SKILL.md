@@ -144,7 +144,7 @@ Invoke `save` only after the user explicitly asks to commit the changes to Git.
 2. Inspect editable source, tests, manifests, and generated evidence.
 3. Identify affected complex IDs, types, labels, metadata, and relationships.
 4. Implement the smallest coherent parametric change.
-5. Update or add focused tests only when a change affects build, viewer, or workflow-policy behavior. Do not create or update design-input validation tests (they have been removed).
+5. Update or add focused tests only when a change affects build, viewer, or workflow-policy behavior. Do not create or update design-input validation tests (they have been removed). Never update model-specific test assertions (IFC mappings, element IDs, annotation content, dimensions, positions, materials) in any test file — those are manual-reference snapshots.
 6. Select the smallest sufficient verification tier from `AGENTS.md`:
    - focused for localized parameters, geometry, annotations, metadata, or tests
    - export-sensitive for solids, semantics, materials, relationships,

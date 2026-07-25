@@ -161,7 +161,10 @@ design-source change.
 Use for localized changes to parameters, geometry, annotations, metadata, or
 focused tests. Design-input validation tests (`test_config_contract.py`,
 `test_model_geometry.py`, `test_drawing_annotations.py`) have been removed —
-agents must not run or re-create them. For a pure design-value edit (no change
+agents must not run or re-create them. Agents must not update test assertions
+about model-specific content (element IDs, IFC mappings, annotation content,
+dimensions, positions, materials) in any test file — these are manual-reference
+snapshots that only a human updates. For a pure design-value edit (no change
 to `tests/`), run only static analysis and project validation:
 
 ```text

@@ -188,6 +188,8 @@ def test_ifc_parse_and_reconcile(built_output) -> None:
 
     entities_by_id = _ifc_entities_by_stable_id(elements)
 
+    # Manual-reference snapshot. Agents must not auto-update this dict.
+    # Only a human updates it when the model's semantic IFC mapping intent changes.
     expected_mappings = {
         "complex.deck_board.upper_deck_board_01": ("IfcSlab", "FLOOR"),
         "complex.structure.hot_tub_platform": ("IfcSlab", "BASESLAB"),
