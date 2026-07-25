@@ -15,6 +15,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 import ezdxf
+from ezdxf.filemanagement import readfile
 import ifcopenshell
 import pytest
 from build123d import import_step
@@ -292,7 +293,7 @@ def test_plan_svg_content(built_output) -> None:
 
 def test_dxf_audit(built_output) -> None:
     for path in sorted((built_output / "drawings" / "dxf").glob("*.dxf")):
-        assert not ezdxf.readfile(path).audit().has_errors
+        assert not readfile(path).audit().has_errors
 
 
 def test_annotation_manifest(built_output) -> None:
