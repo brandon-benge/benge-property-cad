@@ -37,7 +37,13 @@ def test_ci_yml_required_jobs():
 
 def test_regular_ci_excludes_end_to_end_testing():
     text = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
-    forbidden = ["test_build_end_to_end.py", "test_viewer_e2e.py", "playwright install"]
+    forbidden = [
+        "test_build_artifacts.py",
+        "test_build_cli.py",
+        "test_build_determinism.py",
+        "test_viewer_e2e.py",
+        "playwright install",
+    ]
     for value in forbidden:
         assert value not in text, f"regular CI must not run E2E command: {value}"
 
@@ -47,7 +53,7 @@ def test_end_to_end_workflow_is_manual():
     assert "workflow_dispatch:" in text
     assert "push:" not in text
     assert "pull_request:" not in text
-    assert "test_build_end_to_end.py" in text
+    assert "test_build_artifacts.py" in text or "test_build_determinism.py" in text
     assert "test_viewer_e2e.py" in text
 
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
-from python_cad_tools.build import BuildOptions, BuildResult, build_project
 
 
 @pytest.fixture(scope="session")
@@ -66,21 +66,13 @@ def session_project(repo_root: Path, tmp_path_factory: pytest.TempPathFactory) -
     return dest
 
 
-@pytest.fixture(scope="session")
-def build_result(session_project: Path) -> BuildResult:
-    return build_project(BuildOptions(project_root=session_project))
+# ── CLI helper (shared across test files) ────────────────────────────────────
 
 
-@pytest.fixture(scope="session")
-def built_output(build_result: BuildResult) -> Path:
-    return build_result.output_root
-
-
-@pytest.fixture(scope="session")
-def build_manifest(built_output: Path) -> dict:
-    return json.loads((built_output / "manifests" / "build-manifest.json").read_text(encoding="utf-8"))
-
-
-@pytest.fixture(scope="session")
-def design_manifest(built_output: Path) -> dict:
-    return json.loads((built_output / "manifests" / "design-manifest.json").read_text(encoding="utf-8"))
+def _cli(*args: str, cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "python_cad_tools.cli", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )

@@ -188,10 +188,18 @@ relationships, quantities, drawings, or exported formats. Run the focused tier
 first, then the applicable integration and artifact checks:
 
 ```text
-python -m pytest -q -m integration
+python -m pytest -q -m integration                                                   # ~3 min
+python -m pytest -q -m integration -n auto --dist loadscope                         # ~1.5 min with xdist
 python-cad build --project-root .
 python-cad verify --project-root .
 ```
+
+The build integration tests (`-m integration`) have been split into three
+parallel-friendly files: `test_build_artifacts.py` (one full build, ~85 s),
+`test_build_cli.py` (step-only builds, ~50 s), and
+`test_build_determinism.py` (two step+ifc builds, ~104 s). Without xdist they
+run serially (~3 min). With `pytest-xdist -n auto --dist loadscope` they run
+on separate workers in parallel (~1.5 min wall-clock).
 
 Run only the applicable commands when the current environment or installed
 toolchain cannot support an output. Report every skipped or failed command and

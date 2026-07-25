@@ -50,7 +50,7 @@ For a patch upgrade, run only:
   tests/test_workflow_policy.py
 ```
 
-Do not run `tests/test_build_end_to_end.py`, `tests/test_viewer_e2e.py`,
+Do not run `tests/test_build_artifacts.py`, `tests/test_build_cli.py`, `tests/test_build_determinism.py`, `tests/test_viewer_e2e.py`,
 Playwright, determinism tests, or the complete verification matrix for a patch
 upgrade unless the user explicitly requests E2E testing.
 

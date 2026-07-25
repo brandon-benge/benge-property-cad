@@ -1,13 +1,15 @@
-"""Sections 12.4-12.7: Programmatic build, CLI, artifact reconciliation, determinism."""
+"""Sections 12.4, 12.6: Programmatic build and final artifact reconciliation.
+
+All tests share a single module-scoped full-format build (~85 s setup).
+With pytest-xdist --dist loadscope, this file runs on one worker in parallel
+with other build test files.
+"""
 
 from __future__ import annotations
 
 import csv
 import hashlib
 import json
-import subprocess
-import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -16,9 +18,9 @@ import ezdxf
 import ifcopenshell
 import pytest
 from build123d import import_step
+from conftest import _cli
 from pypdf import PdfReader
-from python_cad_tools.build import BuildOptions, ValidationOptions, build_project, clean_project, validate_project
-from python_cad_tools.determinism import semantic_hash
+from python_cad_tools.build import BuildOptions, BuildResult, ValidationOptions, build_project, validate_project
 
 pytestmark = [pytest.mark.integration]
 
@@ -29,34 +31,36 @@ ANNOTATION_IDS = {
     "file.annotation.schedule.openings",
 }
 
-ANNOTATION_SUB_IDS = {
-    "file.annotation.elevation.a201",
-    "file.annotation.elevation.a201.label",
-    "file.annotation.elevation.a201.outline",
-    "file.annotation.elevation.a201.pointer",
-    "file.annotation.elevation.a202",
-    "file.annotation.elevation.a202.label",
-    "file.annotation.elevation.a202.outline",
-    "file.annotation.elevation.a202.pointer",
-    "file.annotation.schedule.openings",
-    "file.annotation.schedule.openings.border",
-    "file.annotation.schedule.openings.header.0",
-    "file.annotation.schedule.openings.header.1",
-    "file.annotation.schedule.openings.header.2",
-    "file.annotation.schedule.openings.header.3",
-    "file.annotation.schedule.openings.row.SD-01.cell.0",
-    "file.annotation.schedule.openings.row.SD-01.cell.1",
-    "file.annotation.schedule.openings.row.SD-01.cell.2",
-    "file.annotation.schedule.openings.row.SD-01.cell.3",
-    "file.annotation.schedule.openings.row.SD-01.separator",
-    "file.annotation.schedule.openings.title",
-    "file.annotation.section.a301",
-    "file.annotation.section.a301.arrow.end",
-    "file.annotation.section.a301.arrow.start",
-    "file.annotation.section.a301.label.end",
-    "file.annotation.section.a301.label.start",
-    "file.annotation.section.a301.line",
-}
+
+# ── Module-scoped full build (one build for all artifact tests) ──────────────
+
+
+@pytest.fixture(scope="module")
+def build_result(repo_root: Path, tmp_path_factory: pytest.TempPathFactory) -> BuildResult:
+    """Full-format build, created once for this module."""
+    dest = tmp_path_factory.mktemp("artifacts_build")
+    from conftest import _copy_project
+
+    _copy_project(repo_root, dest)
+    return build_project(BuildOptions(project_root=dest))
+
+
+@pytest.fixture(scope="module")
+def built_output(build_result: BuildResult) -> Path:
+    return build_result.output_root
+
+
+@pytest.fixture(scope="module")
+def build_manifest(built_output: Path) -> dict:
+    return json.loads((built_output / "manifests" / "build-manifest.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def design_manifest(built_output: Path) -> dict:
+    return json.loads((built_output / "manifests" / "design-manifest.json").read_text(encoding="utf-8"))
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 
 def _sha256(path: Path) -> str:
@@ -67,25 +71,26 @@ def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@dataclass
-class TwoBuilds:
-    output1: Path
-    manifest1: dict
-    output2: Path
-    manifest2: dict
+def _ifc_entities_by_stable_id(elements) -> dict[str, Any]:
+    entities_by_id: dict[str, Any] = {}
+    for entity in elements:
+        for rel_def in entity.IsDefinedBy:
+            if rel_def.is_a("IfcRelDefinesByProperties"):
+                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
+                    if prop.Name == "StableId":
+                        entities_by_id[str(prop.NominalValue.wrappedValue)] = entity
+    return entities_by_id
 
 
-@pytest.fixture
-def two_builds(copied_project: Path) -> TwoBuilds:
-    build_project(BuildOptions(project_root=copied_project))
-    output1 = copied_project / "generated"
-    manifest1 = _load_json(output1 / "manifests" / "build-manifest.json")
-    clean_project(copied_project)
-    assert not (copied_project / "generated" / "step").exists()
-    build_project(BuildOptions(project_root=copied_project))
-    output2 = copied_project / "generated"
-    manifest2 = _load_json(output2 / "manifests" / "build-manifest.json")
-    return TwoBuilds(output1=output1, manifest1=manifest1, output2=output2, manifest2=manifest2)
+def _ifc_stable_ids(elements) -> set[str]:
+    ids: set[str] = set()
+    for entity in elements:
+        for rel_def in entity.IsDefinedBy:
+            if rel_def.is_a("IfcRelDefinesByProperties"):
+                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
+                    if prop.Name == "StableId":
+                        ids.add(str(prop.NominalValue.wrappedValue))
+    return ids
 
 
 # ── 12.4 Programmatic end-to-end build ───────────────────────────────────────
@@ -121,67 +126,15 @@ def test_build_annotations_complete_before_return(built_output) -> None:
     assert ann_ids >= ANNOTATION_IDS
 
 
-def test_build_selected_formats(copied_project) -> None:
-    result = build_project(BuildOptions(project_root=copied_project, formats=("step", "ifc")))
-    output = result.output_root
-    assert (output / "step" / "FileTemplate.step").is_file()
-    assert (output / "ifc" / "FileTemplate.ifc").is_file()
-    assert not (output / "glb").exists() or not list((output / "glb").rglob("*"))
-
-
 def test_build_full_default_formats(built_output) -> None:
     for fmt in ("step", "ifc", "glb", "drawings", "quantities"):
         assert (built_output / fmt).exists(), f"Missing format directory: {fmt}"
 
 
-# ── 12.5 CLI end-to-end ──────────────────────────────────────────────────────
-
-
-def _cli(*args: str, cwd: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, "-m", "python_cad_tools.cli", *args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-    )
-
-
-def test_cli_build_from_root(copied_project) -> None:
-    result = _cli("build", cwd=copied_project)
-    assert result.returncode == 0, f"CLI build failed: stderr={result.stderr}"
-    assert (copied_project / "generated" / "step" / "FileTemplate.step").is_file()
-
-
-def test_cli_build_from_path_with_spaces(copied_project_with_spaces) -> None:
-    result = _cli("build", cwd=copied_project_with_spaces)
-    assert result.returncode == 0, f"CLI build failed in path with spaces: {result.stderr}"
-    assert (copied_project_with_spaces / "generated" / "step" / "FileTemplate.step").is_file()
-
-
-def test_cli_validate(copied_project) -> None:
-    result = _cli("validate", cwd=copied_project)
-    assert result.returncode == 0, f"CLI validate failed: {result.stderr}"
-    assert '"status":"ok"' in result.stdout
-
-
-def test_cli_verify(session_project) -> None:
-    result = _cli("verify", cwd=session_project)
+def test_cli_verify(built_output) -> None:
+    """CLI verify uses the module build's project root."""
+    result = _cli("verify", cwd=built_output.parent)
     assert result.returncode == 0, f"CLI verify failed: {result.stderr}"
-
-
-def test_cli_clean(copied_project) -> None:
-    _cli("build", cwd=copied_project)
-    assert (copied_project / "generated" / "step" / "FileTemplate.step").is_file()
-    result = _cli("clean", cwd=copied_project)
-    assert result.returncode == 0, f"CLI clean failed: {result.stderr}"
-    assert not (copied_project / "generated" / "step").exists()
-
-
-def test_cli_repeated_format(copied_project) -> None:
-    result = _cli("build", "--format", "step", "--format", "ifc", cwd=copied_project)
-    assert result.returncode == 0, f"CLI repeated format failed: {result.stderr}"
-    assert (copied_project / "generated" / "step" / "FileTemplate.step").is_file()
-    assert not (copied_project / "generated" / "glb").exists()
 
 
 # ── 12.6 Final artifact reconciliation ──────────────────────────────────────
@@ -220,29 +173,6 @@ def test_step_reload(built_output) -> None:
     assert len(solids) == len(physical_ids)
 
 
-def _ifc_entities_by_stable_id(elements) -> dict[str, Any]:
-    """Map every IfcElement to its StableId property value."""
-    entities_by_id: dict[str, Any] = {}
-    for entity in elements:
-        for rel_def in entity.IsDefinedBy:
-            if rel_def.is_a("IfcRelDefinesByProperties"):
-                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
-                    if prop.Name == "StableId":
-                        entities_by_id[str(prop.NominalValue.wrappedValue)] = entity
-    return entities_by_id
-
-
-def _ifc_stable_ids(elements) -> set[str]:
-    ids: set[str] = set()
-    for entity in elements:
-        for rel_def in entity.IsDefinedBy:
-            if rel_def.is_a("IfcRelDefinesByProperties"):
-                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
-                    if prop.Name == "StableId":
-                        ids.add(str(prop.NominalValue.wrappedValue))
-    return ids
-
-
 def test_ifc_parse_and_reconcile(built_output) -> None:
     ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
     ifc_validation = _load_json(built_output / "ifc" / "validation.json")
@@ -258,42 +188,27 @@ def test_ifc_parse_and_reconcile(built_output) -> None:
 
     entities_by_id = _ifc_entities_by_stable_id(elements)
 
-    # Representative mappings covering every IfcElement subclass used by the
-    # model, not only IfcBuildingElementProxy.  Each entry asserts both the IFC
-    # class and the accurate predefined type from the IFC4 enumeration.
     expected_mappings = {
-        # IfcSlab — deck boards and structural slabs
         "complex.deck_board.upper_deck_board_01": ("IfcSlab", "FLOOR"),
         "complex.structure.hot_tub_platform": ("IfcSlab", "BASESLAB"),
-        # IfcMember — rafters, plates, mullions
         "complex.roof_framing.roof_rafter_01": ("IfcMember", "RAFTER"),
         "complex.stair.upper_straight_tread_01": ("IfcMember", "PLATE"),
         "complex.feature.sliding_door_frame_left": ("IfcMember", "MULLION"),
-        # IfcRailing — guardrails and balustrades
         "complex.railing.upper_straight_left_handrail": ("IfcRailing", "GUARDRAIL"),
         "complex.site.shed_access_fence": ("IfcRailing", "BALUSTRADE"),
         "complex.site.property_line_solid_fence": ("IfcRailing", "BALUSTRADE"),
-        # IfcRoof — shed and gable roofs
         "complex.roof.upper_deck_roof_cover": ("IfcRoof", "SHED_ROOF"),
         "complex.shed.shed_roof_left_slope": ("IfcRoof", "GABLE_ROOF"),
-        # IfcDoor — circulation doors
         "complex.feature.sliding_door": ("IfcDoor", "DOOR"),
         "complex.shed.shed_front_double_door": ("IfcDoor", "DOOR"),
-        # IfcWall — house and shed walls, fireplace masonry
         "complex.house.house_mass": ("IfcWall", "STANDARD"),
         "complex.fireplace.fireplace_masonry_body": ("IfcWall", "STANDARD"),
-        # IfcBeam — deck framing beams
         "complex.deck_framing.upper_front_beam": ("IfcBeam", "BEAM"),
-        # IfcColumn — support posts
         "complex.deck_framing.upper_support_post_01": ("IfcColumn", "COLUMN"),
-        # IfcCovering — skirting and chimney cap
         "complex.skirting.upper_deck_front_skirt": ("IfcCovering", "SKIRTINGBOARD"),
         "complex.fireplace.fireplace_chimney_cap": ("IfcCovering", "ROOFING"),
-        # IfcLightFixture — deck and stair lighting
         "complex.skirting.upper_deck_front_skirt_light_01": ("IfcLightFixture", "POINTSOURCE"),
-        # IfcSanitaryTerminal — outdoor kitchen sink
         "complex.outdoor_kitchen.outdoor_kitchen_sink_basin": ("IfcSanitaryTerminal", "SINK"),
-        # IfcFurniture — outdoor kitchen cabinets
         "complex.outdoor_kitchen.outdoor_kitchen_cabinet_run": ("IfcFurniture", "USERDEFINED"),
     }
     for stable_id, (ifc_class, predefined_type) in expected_mappings.items():
@@ -305,7 +220,6 @@ def test_ifc_parse_and_reconcile(built_output) -> None:
 
 
 def test_ifc_proxy_elements_use_accurate_predefined_types(built_output) -> None:
-    """Every IfcBuildingElementProxy must use ELEMENT or PROVISIONFORVOID, not NOTDEFINED."""
     ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
     elements = ifc.by_type("IfcBuildingElementProxy")
     assert len(elements) > 0
@@ -319,7 +233,6 @@ def test_ifc_proxy_elements_use_accurate_predefined_types(built_output) -> None:
 
 
 def test_ifc_no_notdefined_predefined_types(built_output) -> None:
-    """No physical element may use NOTDEFINED as its predefined type."""
     ifc = ifcopenshell.open(built_output / "ifc" / "FileTemplate.ifc")
     elements = ifc.by_type("IfcElement")
     entities_by_id = _ifc_entities_by_stable_id(elements)
@@ -383,55 +296,8 @@ def test_dxf_audit(built_output) -> None:
 
 
 def test_annotation_manifest(built_output) -> None:
-    ann_manifest = _load_json(built_output / "drawings" / "annotation-manifest.json")
-    ann_ids = {ann["id"] for ann in ann_manifest["annotations"]}
+    ann_manifest = built_output / "drawings" / "annotation-manifest.json"
+    assert ann_manifest.is_file()
+    annotations = _load_json(ann_manifest)
+    ann_ids = {ann["id"] for ann in annotations["annotations"]}
     assert ann_ids >= ANNOTATION_IDS
-
-
-# ── 12.7 Failure rollback/recovery and determinism ──────────────────────────
-
-
-def test_two_clean_builds_identical(two_builds) -> None:
-    assert two_builds.manifest1["design_semantic_hash"] == two_builds.manifest2["design_semantic_hash"]
-    known_non_deterministic = {
-        "run-metadata.json",
-        "build-manifest.json",
-        "FileTemplate.step",
-    }
-    bm1_stable_excluding_step = semantic_hash(
-        [
-            e
-            for e in two_builds.manifest1["artifacts"]
-            if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
-        ]
-    )
-    bm2_stable_excluding_step = semantic_hash(
-        [
-            e
-            for e in two_builds.manifest2["artifacts"]
-            if not e["volatile"] and not any(e["path"].endswith(name) for name in known_non_deterministic)
-        ]
-    )
-    assert bm1_stable_excluding_step == bm2_stable_excluding_step, (
-        "Stable artifact hash mismatch excluding known non-deterministic files"
-    )
-    arts1 = {e["path"]: e for e in two_builds.manifest1["artifacts"]}
-    arts2 = {e["path"]: e for e in two_builds.manifest2["artifacts"]}
-    assert set(arts1) == set(arts2), "Artifact paths differ between builds"
-    for path_key, entry1 in arts1.items():
-        entry2 = arts2[path_key]
-        if any(entry1["path"].endswith(name) for name in known_non_deterministic):
-            continue
-        assert entry1["sha256"] == entry2["sha256"], f"SHA-256 mismatch for {path_key} between builds"
-
-
-def test_deterministic_nonvolatile_bytes(two_builds) -> None:
-    volatile_names = {"run-metadata.json", "build-manifest.json", "FileTemplate.step"}
-    for entry1, entry2 in zip(two_builds.manifest1["artifacts"], two_builds.manifest2["artifacts"], strict=True):
-        if Path(entry1["path"]).name in volatile_names:
-            continue
-        path1 = two_builds.output1 / entry1["path"]
-        path2 = two_builds.output2 / entry2["path"]
-        bytes1 = path1.read_bytes()
-        bytes2 = path2.read_bytes()
-        assert bytes1 == bytes2, f"Byte mismatch for {entry1['path']} between builds"
