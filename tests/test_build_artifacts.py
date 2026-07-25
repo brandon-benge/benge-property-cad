@@ -14,12 +14,11 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
-import ezdxf
-from ezdxf.filemanagement import readfile
 import ifcopenshell
 import pytest
 from build123d import import_step
 from conftest import _cli
+from ezdxf.filemanagement import readfile
 from pypdf import PdfReader
 from python_cad_tools.build import BuildOptions, BuildResult, ValidationOptions, build_project, validate_project
 
