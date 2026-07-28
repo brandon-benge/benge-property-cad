@@ -31,7 +31,6 @@ The authoritative editable design files are:
 - `config.py`
 - `model.py`
 - `drawing_annotations.py`
-- `tests/`
 
 Generated files under `generated/` are disposable evidence and must never be
 edited directly.
@@ -45,7 +44,7 @@ metadata together.
 
 | Agent | Responsibility | May modify |
 |---|---|---|
-| `file-design-maintainer` | Implement and test template-design changes | `config.py`, `model.py`, `drawing_annotations.py`, `tests/` |
+| `file-design-maintainer` | Implement template-design changes | `config.py`, `model.py`, `drawing_annotations.py` |
 | `file-artifact-reviewer` | Review generated outputs and report design-quality findings | Nothing |
 | `cad-compatibility-verifier` | Verify the installed PyPI package, environment, commands, and compatibility | Nothing |
 | `python-cad-tools-upgrader` | Upgrade the published dependency and apply version-aware testing | `pyproject.toml`, dependency locks |
@@ -88,7 +87,7 @@ boundary.
 
 The design maintainer:
 
-- edits only the authoritative design source and tests
+- edits only the authoritative design source
 - uses only public installed `python_cad_tools` APIs
 - does not inspect or patch package source or `site-packages`
 - preserves stable semantic IDs

@@ -1,6 +1,6 @@
 # Benge Property CAD
 
-Parametric CAD model of the Benge property, built with the published
+Parametric CAD model, built with the published
 `python-cad-tools` package. The editable design lives in `config.py`, `model.py`,
 and `drawing_annotations.py`; tests live in `tests/`.
 
@@ -27,22 +27,6 @@ python3.13 -m venv .venv
 Available lockfiles cover Python 3.12 and 3.13 on macOS arm64 and Ubuntu
 x86_64. Each lock records exact transitive versions and hashes.
 
-### Test with a local python-cad-tools wheel
-
-For short-lived compatibility testing, layer a locally built wheel into a
-disposable environment without changing dependency metadata, lockfiles, or the
-project `.venv`:
-
-```bash
-PYTHON_CAD_TOOLS_OVERRIDE_WHEEL=../python-cad-tools/dist/python_cad_tools-0.1.9.dev0-py3-none-any.whl \
-  tools/test-with-cad-override
-```
-
-The default command is `python -m pytest -q`. Pass a different command after
-the script name when a narrower check is needed. `PYTHON_BIN` may be set to a
-Python 3.12 or 3.13 interpreter when `python3` is not the desired interpreter.
-The script prints the installed distribution version and imported module path
-before running the command, then removes the temporary environment.
 
 ### Upgrade the local installation
 
