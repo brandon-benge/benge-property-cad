@@ -996,7 +996,13 @@ def build_model(context: BuildContext) -> DesignModel:
         )
 
     kitchen_x = 10.5 * cfg.FOOT
-    kitchen_y = -2.5 * cfg.FOOT
+    # Keep the outdoor kitchen a full 1 inch off the house wall on the y axis.
+    # The house wall sits at y=0..+1in; the countertop overhangs the cabinet 2
+    # inches toward the wall, so the cabinet origin is the wall clearance plus
+    # the overhang plus the cabinet depth below the wall datum.  This keeps the
+    # countertop back edge at y=-1in so neither the cabinet, countertop, nor
+    # grill intersects the house mass.
+    kitchen_y = -1 * INCH - cfg.KITCHEN_DEPTH - 2 * INCH
     builder.add_box(
         "outdoor-kitchen",
         "OutdoorKitchenCabinetRun",
