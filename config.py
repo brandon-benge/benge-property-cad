@@ -115,8 +115,9 @@ SHED_PAVER_THICKNESS = 4 * INCH
 VEHICLE_CONNECTOR_CLEAR_WIDTH = 10 * FOOT
 
 # Black ornamental fence along the right side of ShedAccessPavers when viewed
-# from the house toward the shed.
-SHED_ACCESS_FENCE_HEIGHT = 4 * FOOT
+# from the house toward the shed.  Matches the 6ft property-line privacy fence
+# height so every fence on the property is a uniform 6ft tall.
+SHED_ACCESS_FENCE_HEIGHT = 6 * FOOT
 SHED_ACCESS_FENCE_POST_SIZE = 2 * INCH
 SHED_ACCESS_FENCE_RAIL_SIZE = 1.5 * INCH
 SHED_ACCESS_FENCE_POST_SPACING = 6 * FOOT
