@@ -10,7 +10,7 @@ from typing import Any
 from build123d import Cone, Plane, Polyline, Sphere, extrude, make_face
 from python_cad_tools.context import BuildContext
 from python_cad_tools.elements import DesignElement, DesignModel, Dimensions, IfcMapping, MaterialSpec, Placement
-from python_cad_tools.geometry import box, cylinder_between, prism_between, sloped_pool
+from python_cad_tools.geometry import box, cylinder_between, prism_between
 from python_cad_tools.units import FOOT, INCH, MM, Length, mm, to_mm
 
 import config as cfg
@@ -112,9 +112,8 @@ def _ifc_mapping(category: str, name: str) -> IfcMapping:
         # Ornamental fences map to IfcRailing/BALUSTRADE.
         if "Fence" in name:
             return IfcMapping("IfcRailing", "BALUSTRADE")
-        # Landscape elements (trees, grass, rock, pavers, tiles, coping) have no
-        # specific IFC4 class; they remain proxies with the ELEMENT predefined
-        # type.
+        # Landscape elements (trees, grass, rock, pavers) have no specific
+        # IFC4 class; they remain proxies with the ELEMENT predefined type.
         return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
     raise ValueError(f"No IFC mapping defined for {category!r} element {name!r}")
 
@@ -165,7 +164,6 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
     # Site
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
-    ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
     ("site", cfg.ROCK_COLOR): ("Landscape Rock", 1650.0),
     ("site", cfg.FENCE_COLOR): ("Black Powder-Coated Aluminum Fence", 2700.0),
@@ -1670,68 +1668,12 @@ def build_model(context: BuildContext) -> DesignModel:
     pool_y = stair_end_y - cfg.DECK_TO_POOL_CLEARANCE - cfg.POOL_WIDTH - cfg.PATIO_BORDER
     pool_length = cfg.POOL_LENGTH
     pool_width = cfg.POOL_WIDTH
-    # Retain the established left tile edge; the derived pool length makes the
-    # outer edge of the right tile border end at the requested X coordinate.
+    # The inground pool and its tile surround have been removed and filled with
+    # grass.  These coordinates still define the former pool footprint, which
+    # the unified yard grass now covers.
     pool_x = cfg.POOL_TILE_SURROUND_MIN_X + cfg.PATIO_BORDER
-    # 2' tile ground border around the pool.  Modeled as a ring of individual
-    # 2' x 2' tile solids (not a single solid slab) so the pool surround reads
-    # as laid tile rather than a monolithic pour.  The left/right strips span
-    # the full width including corners; the near/far strips fill the gap
-    # between them so no tile overlaps the pool footprint or another tile.
     tile_border = cfg.PATIO_BORDER
-    tile_size = cfg.POOL_TILE_SIZE
-    tile_thickness = 4 * INCH
-    tile_z = -tile_thickness
     pool_surround_right_x = pool_x + pool_length + tile_border
-
-    def _tile_run(name_prefix: str, x: Length, y: Length, run_length: Length, *, axis: str) -> None:
-        """Lay a single-row strip of 2' x 2' tiles along the given axis."""
-        step = tile_size
-        index = 1
-        if axis == "x":
-            pos = x
-            while pos < x + run_length - 1e-6 * MM:
-                length = min(tile_size, x + run_length - pos)
-                builder.add_box(
-                    "site",
-                    f"{name_prefix}_{index:02d}",
-                    length,
-                    tile_border,
-                    tile_thickness,
-                    pos,
-                    y,
-                    tile_z,
-                    cfg.TILE_COLOR,
-                )
-                pos = pos + step
-                index += 1
-        else:  # axis == "y"
-            pos = y
-            while pos < y + run_length - 1e-6 * MM:
-                length = min(tile_size, y + run_length - pos)
-                builder.add_box(
-                    "site",
-                    f"{name_prefix}_{index:02d}",
-                    tile_border,
-                    length,
-                    tile_thickness,
-                    x,
-                    pos,
-                    tile_z,
-                    cfg.TILE_COLOR,
-                )
-                pos = pos + step
-                index += 1
-
-    # Left/right strips include the corner tiles, so they span the full
-    # pool width plus a border on each side.
-    side_run = pool_width + 2 * tile_border
-    _tile_run("PoolTileBorderLeft", pool_x - tile_border, pool_y - tile_border, side_run, axis="y")
-    _tile_run("PoolTileBorderRight", pool_x + pool_length, pool_y - tile_border, side_run, axis="y")
-    # Near/far strips fill the gap between the left/right strips (pool length
-    # only, no corners) so tiles do not overlap.
-    _tile_run("PoolTileBorderNear", pool_x, pool_y + pool_width, pool_length, axis="x")
-    _tile_run("PoolTileBorderFar", pool_x, pool_y - tile_border, pool_length, axis="x")
 
     # Assemble every turf region into one semantic CAD element. The compound
     # preserves the hardscape and access cutouts while exporting/selecting as
@@ -2020,11 +1962,9 @@ def build_model(context: BuildContext) -> DesignModel:
             },
         )
 
-    # Missing grass under the trees between PoolSouthGrass and PoolGrassStrip.
-    # The pool and its tile border occupy
-    # x=pool_x-tile_border..pool_surround_right_x
-    # in the y range from pool_y-tile_border to pool_y+pool_width+tile_border.
-    # The trees at x=0 need grass in that y gap.
+    # Grass under the trees between PoolSouthGrass and PoolGrassStrip, in the
+    # y gap left of the former pool footprint.  The trees at x=0 need grass in
+    # that y gap.
     pool_mid_far_y = pool_y - tile_border  # -42ft, top of PoolSouthGrass
     pool_mid_near_y = pool_y + pool_width + tile_border  # -26ft, bottom of PoolGrassStrip
     pool_mid_depth = pool_mid_near_y - pool_mid_far_y
@@ -2037,6 +1977,18 @@ def build_model(context: BuildContext) -> DesignModel:
                 origin=(ZERO, pool_mid_far_y, -cfg.GRASS_THICKNESS),
             )
         )
+
+    # The inground pool and its tile surround have been removed; fill the
+    # former pool footprint and tile border area with grass so it merges
+    # seamlessly into the unified yard grass.
+    grass_regions.append(
+        box(
+            pool_surround_right_x - (pool_x - tile_border),
+            pool_width + 2 * tile_border,
+            cfg.GRASS_THICKNESS,
+            origin=(pool_x - tile_border, pool_y - tile_border, -cfg.GRASS_THICKNESS),
+        )
+    )
 
     if grass_regions:
         unified_grass = grass_regions[0].fuse(*grass_regions[1:])
@@ -2058,109 +2010,6 @@ def build_model(context: BuildContext) -> DesignModel:
                 "assembly_role": "yard_grass_with_hardscape_exclusions",
             },
         )
-
-    # Sloped pool with the deep end on the "reverse" side (left, near the
-    # house).  sloped_pool always places the deep end at +x, so the geometry
-    # is mirrored about the pool's center x to put the deep end on the left.
-    pool = sloped_pool(
-        pool_length, pool_width, cfg.POOL_SHALLOW_DEPTH, cfg.POOL_DEEP_DEPTH, origin=(pool_x, pool_y, ZERO)
-    )
-    if cfg.POOL_DEEP_END_SIDE == "left":
-        center_x_mm = to_mm(pool_x) + to_mm(pool_length) / 2
-        pool = pool.mirror(Plane.YZ.offset(center_x_mm))
-    elif cfg.POOL_DEEP_END_SIDE != "right":
-        raise ValueError(f"Unsupported POOL_DEEP_END_SIDE: {cfg.POOL_DEEP_END_SIDE!r}; expected 'left' or 'right'")
-    pool_shell = sloped_pool(
-        pool_length + 2 * cfg.POOL_SHELL_THICKNESS,
-        pool_width + 2 * cfg.POOL_SHELL_THICKNESS,
-        cfg.POOL_SHALLOW_DEPTH + cfg.POOL_SHELL_THICKNESS,
-        cfg.POOL_DEEP_DEPTH + cfg.POOL_SHELL_THICKNESS,
-        origin=(pool_x - cfg.POOL_SHELL_THICKNESS, pool_y - cfg.POOL_SHELL_THICKNESS, ZERO),
-    )
-    if cfg.POOL_DEEP_END_SIDE == "left":
-        pool_shell = pool_shell.mirror(Plane.YZ.offset(center_x_mm))
-    builder.add_shape(
-        "pool",
-        "MainPoolShell",
-        pool_shell.cut(pool),
-        cfg.TILE_COLOR,
-        Dimensions(
-            to_mm(pool_length + 2 * cfg.POOL_SHELL_THICKNESS),
-            to_mm(pool_width + 2 * cfg.POOL_SHELL_THICKNESS),
-            to_mm(cfg.POOL_DEEP_DEPTH + cfg.POOL_SHELL_THICKNESS),
-        ),
-        placement=(pool_x - cfg.POOL_SHELL_THICKNESS, pool_y - cfg.POOL_SHELL_THICKNESS, ZERO),
-        properties={
-            "label": "Main Pool Structural Shell",
-            "complex_type": "sloped_pool_shell",
-            "assembly_role": "watertight_pool_enclosure",
-            "contains": "complex.pool.main_pool_water_sloped5ft_to8ft",
-            "shell_thickness_mm": to_mm(cfg.POOL_SHELL_THICKNESS),
-        },
-    )
-    coping_outer = box(
-        pool_length + 2 * cfg.POOL_COPING_WIDTH,
-        pool_width + 2 * cfg.POOL_COPING_WIDTH,
-        cfg.POOL_COPING_THICKNESS,
-        origin=(pool_x - cfg.POOL_COPING_WIDTH, pool_y - cfg.POOL_COPING_WIDTH, ZERO),
-    )
-    coping_opening = box(
-        pool_length,
-        pool_width,
-        cfg.POOL_COPING_THICKNESS,
-        origin=(pool_x, pool_y, ZERO),
-    )
-    builder.add_shape(
-        "site",
-        "MainPoolCoping",
-        coping_outer.cut(coping_opening),
-        cfg.TILE_COLOR,
-        Dimensions(
-            to_mm(pool_length + 2 * cfg.POOL_COPING_WIDTH),
-            to_mm(pool_width + 2 * cfg.POOL_COPING_WIDTH),
-            to_mm(cfg.POOL_COPING_THICKNESS),
-        ),
-        placement=(pool_x - cfg.POOL_COPING_WIDTH, pool_y - cfg.POOL_COPING_WIDTH, ZERO),
-        properties={
-            "complex_type": "pool_coping_ring",
-            "assembly_role": "pool_edge_finish",
-            "surrounds": "complex.pool.main_pool_water_sloped5ft_to8ft",
-        },
-    )
-    shallow_x = pool_x + pool_length - cfg.POOL_STEP_TREAD
-    for step_index in range(3):
-        builder.add_box(
-            "pool",
-            f"MainPoolEntryStep_{step_index + 1}",
-            cfg.POOL_STEP_TREAD * (step_index + 1),
-            cfg.POOL_STEP_WIDTH,
-            cfg.POOL_STEP_RISE,
-            shallow_x - cfg.POOL_STEP_TREAD * step_index,
-            pool_y + (pool_width - cfg.POOL_STEP_WIDTH) / 2,
-            -cfg.POOL_SHALLOW_DEPTH + cfg.POOL_STEP_RISE * step_index,
-            cfg.TILE_COLOR,
-            parent_id="complex.pool.main_pool_shell",
-            properties={"complex_type": "pool_entry_step", "assembly_role": "entry_step"},
-        )
-    builder.add_shape(
-        "pool",
-        "MainPoolWater_Sloped5ftTo8ft",
-        pool,
-        cfg.WATER_COLOR,
-        Dimensions(
-            to_mm(pool_length),
-            to_mm(pool_width),
-            to_mm(cfg.POOL_DEEP_DEPTH),
-            extras={"shallow_depth_mm": to_mm(cfg.POOL_SHALLOW_DEPTH)},
-        ),
-        placement=(pool_x, pool_y, ZERO),
-        drawing_label=True,
-        properties={
-            "label": "Main Pool Water — Sloped 5 ft to 8 ft",
-            "quantity_provenance": "exact_sloped_geometry",
-            "deep_end_side": cfg.POOL_DEEP_END_SIDE,
-        },
-    )
 
     # Gable-roof yard shed wholly on the negative-X side.  Its near/front edge
     # starts at y=-24yd and the body extends another 20ft toward negative Y.
