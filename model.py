@@ -1933,6 +1933,41 @@ def build_model(context: BuildContext) -> DesignModel:
             properties={**fence_properties, "assembly_role": "picket"},
         )
 
+    # White privacy fence closing the shed side of the yard at the house datum
+    # (Y=0).  It runs along X from the shed access fence (X=fence_x) to the
+    # house wall (X=0), connecting the black ornamental shed access fence to
+    # the house mass so the shed/paver side of the yard is fully screened at
+    # the house end.  The white solid panel finish matches the property-line
+    # privacy fence and the uniform 6ft fence height used across the property.
+    # The panel sits just south of the house wall (north face on Y=0) so it
+    # touches the house without intersecting it.
+    shed_house_fence_length = ZERO - fence_x  # fence_x (-262in) -> house at X=0
+    shed_house_fence_thickness = cfg.PROPERTY_LINE_FENCE_THICKNESS
+    shed_house_fence_properties = {
+        "complex_type": "solid_privacy_fence",
+        "assembly_role": "yard_closure_screen",
+        "finish": "white_solid_panel",
+        "opacity": "solid",
+        "see_through": False,
+        "adjacent_to": "complex.site.shed_access_fence",
+        "connects_to": "complex.house.house_mass",
+        "side": "shed_access_to_house",
+        "axis": "y0",
+    }
+    builder.add_box(
+        "site",
+        "ShedAccessHouseFence",
+        shed_house_fence_length,
+        shed_house_fence_thickness,
+        cfg.PROPERTY_LINE_FENCE_HEIGHT,
+        fence_x,
+        -shed_house_fence_thickness,
+        ZERO,
+        cfg.PROPERTY_LINE_FENCE_COLOR,
+        drawing_label=True,
+        properties=shed_house_fence_properties,
+    )
+
     # Solid white privacy fence on the right property line at X=55ft.  It runs
     # from the house datum (y=0) to the back of the unified yard grass (the
     # shed's far Y edge) and is a single continuous solid panel with no pickets
