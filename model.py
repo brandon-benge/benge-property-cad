@@ -24,13 +24,6 @@ TREE_GREEN: Color = (0.0, 0.45, 0.15)
 TREE_BROWN: Color = (0.40, 0.25, 0.10)
 
 
-# Categories whose elements are individually mapped below rather than blanket
-# proxied.  Each element receives the most specific IFC4 class available; only
-# objects with no suitable IFC4 class remain as IfcBuildingElementProxy with an
-# accurate predefined type (ELEMENT or PROVISIONFORVOID) rather than NOTDEFINED.
-IFC_PROXY_CATEGORIES = {"feature", "outdoor-kitchen", "pool", "site"}
-
-
 def _ifc_mapping(category: str, name: str) -> IfcMapping:
     """Return the most specific IFC4 class and predefined type for an element.
 

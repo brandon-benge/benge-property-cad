@@ -42,7 +42,6 @@ ROOF_FRONT_POSTS = 2
 STAIR_WIDTH = 4 * FOOT
 TREAD_DEPTH = 11 * INCH
 MAX_RISER = 7.5 * INCH
-LANDING_DEPTH = 5 * FOOT
 
 # Low-voltage deck lighting layout.  Perimeter fixtures sit close enough to
 # corners to make changes in direction legible while remaining evenly spaced.
@@ -160,7 +159,6 @@ TREE_TRUNK_RADIUS = 3 * INCH
 
 FIREPLACE_WIDTH = 3 * FOOT
 FIREPLACE_DEPTH = 8 * FOOT
-FIREPLACE_HEIGHT = UPPER_DECK_ELEVATION + ROOF_HEIGHT_ABOVE_UPPER - ROOF_SLOPE_DROP - 6 * INCH  # hidden under roof
 FIREPLACE_OPENING_WIDTH = 5 * FOOT
 FIREPLACE_OPENING_HEIGHT = 30 * INCH
 
