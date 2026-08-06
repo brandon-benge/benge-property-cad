@@ -54,10 +54,15 @@ DECK_LIGHT_PROJECTION = 0.5 * INCH
 WIDE_STAIR_LIGHT_THRESHOLD = 6 * FOOT
 
 POOL_WIDTH = 12 * FOOT
+POOL_SHALLOW_DEPTH = 5 * FOOT
+POOL_DEEP_DEPTH = 8 * FOOT
+# Deep end is on the "reverse" side (left, near the house) of the pool footprint
+# and the shallow end is on the right (toward the lower deck edge).
+POOL_DEEP_END_SIDE = "left"  # left | right
 PATIO_BORDER = 2 * FOOT
-# The former pool tile surround retains its established left edge and ends at
-# X=12.852m.  The inground pool has been removed and filled with grass; these
-# coordinates still define the grass area that replaces it.
+POOL_TILE_SIZE = 2 * FOOT
+# The tile surround retains its established left edge and ends at X=12.852m.
+# Derive the water length from those outer limits and the border on both ends.
 POOL_TILE_SURROUND_MIN_X = 2.667 * 3 * FOOT
 POOL_TILE_SURROUND_MAX_X = 12_852 * MM
 POOL_LENGTH = POOL_TILE_SURROUND_MAX_X - POOL_TILE_SURROUND_MIN_X - 2 * PATIO_BORDER
@@ -104,8 +109,8 @@ SHED_PAVER_END_Y = 0 * FOOT
 SHED_PAVER_THICKNESS = 4 * INCH
 
 # A single-vehicle connector crosses the evergreen screen at the shed-near
-# (south) end of the former pool area.  Ten feet is the deliberately tight
-# clear width; it is not intended to become a second driveway field.
+# (south) end of the pool.  Ten feet is the deliberately tight clear width;
+# it is not intended to become a second driveway field.
 VEHICLE_CONNECTOR_CLEAR_WIDTH = 10 * FOOT
 
 # Black ornamental fence along the right side of ShedAccessPavers when viewed
@@ -135,6 +140,13 @@ HOT_TUB_WATER_OFFSET = 8 * INCH
 HOT_TUB_STEP_WIDTH = 30 * INCH
 HOT_TUB_STEP_DEPTH = 12 * INCH
 HOT_TUB_STEP_HEIGHT = 6 * INCH
+
+POOL_SHELL_THICKNESS = 6 * INCH
+POOL_COPING_WIDTH = 12 * INCH
+POOL_COPING_THICKNESS = 3 * INCH
+POOL_STEP_WIDTH = 4 * FOOT
+POOL_STEP_TREAD = 12 * INCH
+POOL_STEP_RISE = 10 * INCH
 
 RAILING_HEIGHT = 42 * INCH
 RAILING_RAIL_SIZE = 2 * INCH
@@ -184,6 +196,7 @@ RAILING_COLOR = (0.10, 0.10, 0.10)
 BRICK_COLOR = (0.55, 0.18, 0.10)
 WATER_COLOR = (0.05, 0.30, 0.65)
 PAVER_COLOR = (0.70, 0.70, 0.68)
+TILE_COLOR = (0.78, 0.80, 0.82)
 GRASS_COLOR = (0.36, 0.55, 0.24)
 ROCK_COLOR = (0.42, 0.40, 0.36)
 SHED_SIDING_COLOR = HOUSE_COLOR
