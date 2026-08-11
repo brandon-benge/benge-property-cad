@@ -1433,7 +1433,7 @@ def build_model(context: BuildContext) -> DesignModel:
         properties={
             "complex_type": "profiled_deck_skirt",
             "assembly_role": "deck_enclosure",
-            "adjacent_to": ["complex.deck_board.lower_*", "complex.stair.lower_front_*"],
+            "adjacent_to": "complex.deck_board.lower_*, complex.stair.lower_front_*",
             "minimum_clearance_above_grade_mm": to_mm(cfg.DECK_SKIRT_MIN_CLEARANCE_ABOVE_GRADE),
         },
     )
