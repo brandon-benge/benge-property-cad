@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "run_id": "31727702519-1",
+  "source": "github-actions",
+  "github": {
+    "event_name": "issues",
+    "repository": "brandon-benge/benge-property-cad",
+    "repository_id": "1299638363",
+    "workflow": "opencode",
+    "run_id": "31727702519",
+    "run_attempt": "1",
+    "actor": "brandon-benge",
+    "ref": "refs/heads/main",
+    "trigger_sha": "60379263b2e40ae2686eba6ae1ca4bbf44419906",
+    "issue": {
+      "number": 14,
+      "title": "Need to fix stairs",
+      "body": "## Request\n\nCurrently the UpperStraightTread rails are 100% correct, do not change them. However, the steps do not align with the 45 degree turn so that they match the rails as they go down. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=88630912-0514-4251-87AD-94A071FDC0BA sha256=169210e62513d351374703dfbce9a022648cc57b3da163b88cdf8d419fe1aabd -->"
+    },
+    "comment": null
+  },
+  "opencode": {
+    "version": "1.15.2",
+    "model": "anthropic/claude-haiku-4-5-20251001",
+    "agent": "file-design-maintainer",
+    "exit_code": 0,
+    "provider_id": "anthropic",
+    "model_id": "claude-haiku-4-5-20251001",
+    "credential_presence": {
+      "OPENCODE_API_KEY_PRESENT": true,
+      "OPENAI_API_KEY_PRESENT": true,
+      "ANTHROPIC_API_KEY_PRESENT": true,
+      "GOOGLE_API_KEY_PRESENT": false,
+      "OPENROUTER_API_KEY_PRESENT": false,
+      "GROQ_API_KEY_PRESENT": false,
+      "XAI_API_KEY_PRESENT": false,
+      "DEEPINFRA_API_KEY_PRESENT": false,
+      "MISTRAL_API_KEY_PRESENT": false
+    }
+  },
+  "started_at": "2026-08-13T17:51:15Z",
+  "completed_at": "2026-08-13T18:01:02Z",
+  "status": "completed",
+  "failure_stage": null,
+  "starting_revision": "60379263b2e40ae2686eba6ae1ca4bbf44419906",
+  "candidate_changed_paths": [
+    "model.py"
+  ],
+  "validation": [
+    {
+      "command": "python-cad validate --project-root .",
+      "exit_code": 0
+    }
+  ],
+  "events": {
+    "original_bytes": 246278,
+    "retained_bytes": 246278,
+    "truncated": false,
+    "sha256": "a2df35c012de6fb9c9e1d5a5c658997edec2849fc13ea964f8fcaf014eb82994"
+  }
+}

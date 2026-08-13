@@ -1276,40 +1276,93 @@ def build_model(context: BuildContext) -> DesignModel:
         direction_y = dy / run
         riser_thickness = 1.25 * INCH
         riser_setback = (to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)) / 2
-        tread_length = width if axis == "y" else cfg.TREAD_DEPTH
-        tread_depth = cfg.TREAD_DEPTH if axis == "y" else width
-        for index in range(1, steps + 1):
-            ratio = index / steps
-            center_x = to_mm(start[0]) + dx * ratio
-            center_y = to_mm(start[1]) + dy * ratio
-            tread_z = to_mm(start_z) - rise * index
-            builder.add_box(
-                "stair",
-                f"{prefix}Tread_{index:02d}",
-                tread_length,
-                tread_depth,
-                cfg.DECK_BOARD_THICKNESS,
-                mm(center_x - to_mm(tread_length) / 2),
-                mm(center_y - to_mm(tread_depth) / 2),
-                mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS)),
-                cfg.DECK_COLOR,
-            )
 
-            riser_center_x = center_x - direction_x * riser_setback
-            riser_center_y = center_y - direction_y * riser_setback
-            riser_x_dim = tread_length if axis == "y" else riser_thickness
-            riser_y_dim = riser_thickness if axis == "y" else tread_depth
-            builder.add_box(
-                "stair",
-                f"{prefix}Riser_{index:02d}",
-                riser_x_dim,
-                riser_y_dim,
-                mm(abs(rise)),
-                mm(riser_center_x - to_mm(riser_x_dim) / 2),
-                mm(riser_center_y - to_mm(riser_y_dim) / 2),
-                mm(min(tread_z, tread_z + rise)),
-                cfg.SKIRTING_COLOR,
-            )
+        # Check if stairs are diagonal (both dx and dy are non-zero)
+        is_diagonal = abs(dx) > 0.1 and abs(dy) > 0.1
+
+        if is_diagonal:
+            # For diagonal stairs, use prism_between to create rotated treads
+            # The tread extends along the stair direction and perpendicular to it
+            for index in range(1, steps + 1):
+                ratio = index / steps
+                center_x = to_mm(start[0]) + dx * ratio
+                center_y = to_mm(start[1]) + dy * ratio
+                tread_z = to_mm(start_z) - rise * index
+
+                # Calculate tread start and end points along the stair direction
+                # Tread extends cfg.TREAD_DEPTH along the stair direction
+                tread_start_x = center_x - direction_x * to_mm(cfg.TREAD_DEPTH) / 2
+                tread_start_y = center_y - direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+                tread_end_x = center_x + direction_x * to_mm(cfg.TREAD_DEPTH) / 2
+                tread_end_y = center_y + direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+
+                builder.add_prism(
+                    "stair",
+                    f"{prefix}Tread_{index:02d}",
+                    (
+                        mm(tread_start_x),
+                        mm(tread_start_y),
+                        start_z + (end_z - start_z) * ratio - cfg.DECK_BOARD_THICKNESS,
+                    ),
+                    (mm(tread_end_x), mm(tread_end_y), start_z + (end_z - start_z) * ratio - cfg.DECK_BOARD_THICKNESS),
+                    width,
+                    cfg.DECK_BOARD_THICKNESS,
+                    cfg.DECK_COLOR,
+                )
+
+                # Riser positioned at the front of the tread (downslope direction)
+                riser_center_x = center_x - direction_x * riser_setback
+                riser_center_y = center_y - direction_y * riser_setback
+                riser_start_x = riser_center_x - direction_x * to_mm(cfg.TREAD_DEPTH) / 2
+                riser_start_y = riser_center_y - direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+                riser_end_x = riser_center_x + direction_x * to_mm(cfg.TREAD_DEPTH) / 2
+                riser_end_y = riser_center_y + direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+
+                builder.add_prism(
+                    "stair",
+                    f"{prefix}Riser_{index:02d}",
+                    (mm(riser_start_x), mm(riser_start_y), start_z + (end_z - start_z) * ratio),
+                    (mm(riser_end_x), mm(riser_end_y), start_z + (end_z - start_z) * ratio),
+                    riser_thickness,
+                    mm(abs(rise)),
+                    cfg.SKIRTING_COLOR,
+                )
+        else:
+            # For axis-aligned stairs, use the original box-based approach
+            tread_length = width if axis == "y" else cfg.TREAD_DEPTH
+            tread_depth = cfg.TREAD_DEPTH if axis == "y" else width
+            for index in range(1, steps + 1):
+                ratio = index / steps
+                center_x = to_mm(start[0]) + dx * ratio
+                center_y = to_mm(start[1]) + dy * ratio
+                tread_z = to_mm(start_z) - rise * index
+                builder.add_box(
+                    "stair",
+                    f"{prefix}Tread_{index:02d}",
+                    tread_length,
+                    tread_depth,
+                    cfg.DECK_BOARD_THICKNESS,
+                    mm(center_x - to_mm(tread_length) / 2),
+                    mm(center_y - to_mm(tread_depth) / 2),
+                    mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS)),
+                    cfg.DECK_COLOR,
+                )
+
+                riser_center_x = center_x - direction_x * riser_setback
+                riser_center_y = center_y - direction_y * riser_setback
+                riser_x_dim = tread_length if axis == "y" else riser_thickness
+                riser_y_dim = riser_thickness if axis == "y" else tread_depth
+                builder.add_box(
+                    "stair",
+                    f"{prefix}Riser_{index:02d}",
+                    riser_x_dim,
+                    riser_y_dim,
+                    mm(abs(rise)),
+                    mm(riser_center_x - to_mm(riser_x_dim) / 2),
+                    mm(riser_center_y - to_mm(riser_y_dim) / 2),
+                    mm(min(tread_z, tread_z + rise)),
+                    cfg.SKIRTING_COLOR,
+                )
 
         stair_skirt_width = 2 * INCH
         stair_skirt_clearance = 0.125 * INCH
