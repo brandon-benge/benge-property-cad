@@ -6,8 +6,9 @@ PROJECT_NAME = "File Template"
 
 UPPER_DECK_WIDTH = 24.5 * FOOT
 UPPER_DECK_DEPTH = 16 * FOOT
-LOWER_DECK_WIDTH = 17.5 * FOOT
-LOWER_DECK_DEPTH = 12 * FOOT
+# Lower deck now spans back to the X=0 axis and extends twice as far on Y.
+LOWER_DECK_WIDTH = 42 * FOOT
+LOWER_DECK_DEPTH = 36 * FOOT
 LOWER_DECK_ELEVATION = 32 * INCH
 UPPER_DECK_ELEVATION = LOWER_DECK_ELEVATION + 28 * INCH
 DECK_THICKNESS = 6 * INCH
@@ -39,7 +40,7 @@ ROOF_STYLE = "shed"  # shed | flat | gable
 ROOF_ATTACH_TO_HOUSE = True
 ROOF_FRONT_POSTS = 2
 
-STAIR_WIDTH = 4 * FOOT
+STAIR_WIDTH = 4 * FOOT  # Used for LowerFront stairs; UpperStraight stairs are angled
 TREAD_DEPTH = 11 * INCH
 MAX_RISER = 7.5 * INCH
 
