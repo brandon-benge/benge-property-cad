@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "run_id": "31725712951-1",
+  "source": "github-actions",
+  "github": {
+    "event_name": "issues",
+    "repository": "brandon-benge/benge-property-cad",
+    "repository_id": "1299638363",
+    "workflow": "opencode",
+    "run_id": "31725712951",
+    "run_attempt": "1",
+    "actor": "brandon-benge",
+    "ref": "refs/heads/main",
+    "trigger_sha": "01a51f5cdc8e2b4440e0fdb159ffdab490428d86",
+    "issue": {
+      "number": 13,
+      "title": "Fix grass and trees",
+      "body": "## Request\n\nFix the grass so that it does not have a boxed whole in it. Also, remove the trees that pass through the deck. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=E946D9E9-91D1-427B-8DBB-BB4E4C60C7BD sha256=429fe7513f1e04c6f0cb04ad9fb544813d5ab8b5097c70b4cea8c7fd5d3c4405 -->"
+    },
+    "comment": null
+  },
+  "opencode": {
+    "version": "1.15.2",
+    "model": "openai/gpt-5.4-mini",
+    "agent": "file-design-maintainer",
+    "exit_code": 0,
+    "provider_id": "openai",
+    "model_id": "gpt-5.4-mini",
+    "credential_presence": {
+      "OPENCODE_API_KEY_PRESENT": true,
+      "OPENAI_API_KEY_PRESENT": true,
+      "ANTHROPIC_API_KEY_PRESENT": false,
+      "GOOGLE_API_KEY_PRESENT": false,
+      "OPENROUTER_API_KEY_PRESENT": false,
+      "GROQ_API_KEY_PRESENT": false,
+      "XAI_API_KEY_PRESENT": false,
+      "DEEPINFRA_API_KEY_PRESENT": false,
+      "MISTRAL_API_KEY_PRESENT": false
+    }
+  },
+  "started_at": "2026-08-13T17:27:27Z",
+  "completed_at": "2026-08-13T17:35:20Z",
+  "status": "completed",
+  "failure_stage": null,
+  "starting_revision": "01a51f5cdc8e2b4440e0fdb159ffdab490428d86",
+  "candidate_changed_paths": [
+    "model.py"
+  ],
+  "validation": [
+    {
+      "command": "python-cad validate --project-root .",
+      "exit_code": 0
+    }
+  ],
+  "events": {
+    "original_bytes": 186432,
+    "retained_bytes": 186432,
+    "truncated": false,
+    "sha256": "76ed5709b7cedad00e10cba081a187f993249406e9844e4a5499170c13b24dfe"
+  }
+}

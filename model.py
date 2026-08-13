@@ -2188,19 +2188,11 @@ def build_model(context: BuildContext) -> DesignModel:
             },
         )
 
-    # Evergreen screen along x=0. Tree_06 is intentionally removed to form the
-    # 10ft vehicle opening beside the pool; the two bordering trees are clipped
-    # in depth at the opening. Tree_11Foliage was removed; the screen now ends
-    # at Tree_10.
+    # Evergreen screen along x=0. The trees that intersect the deck footprint
+    # have been removed so the remaining screen starts below the deck edge.
     _tree_trunk_height = cfg.TREE_TRUNK_HEIGHT
     _tree_trunk_radius = cfg.TREE_TRUNK_RADIUS
     _tree_layout = (
-        (1, -19 * FOOT, 6 * FOOT),
-        (2, -23 * FOOT, 6 * FOOT),
-        (3, -27 * FOOT, 6 * FOOT),
-        (4, -31 * FOOT, 6 * FOOT),
-        (5, -35 * FOOT, 6 * FOOT),
-        # Tree_06 removed for the vehicle opening.
         (7, -54 * FOOT, 6 * FOOT),
         (8, -58 * FOOT, 6 * FOOT),
         (9, -62 * FOOT, 6 * FOOT),
