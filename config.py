@@ -54,19 +54,18 @@ DECK_LIGHT_FACE_HEIGHT = 1 * INCH
 DECK_LIGHT_PROJECTION = 0.5 * INCH
 WIDE_STAIR_LIGHT_THRESHOLD = 6 * FOOT
 
-POOL_WIDTH = 12 * FOOT
-POOL_SHALLOW_DEPTH = 5 * FOOT
-POOL_DEEP_DEPTH = 8 * FOOT
+POOL_LENGTH = 30 * FOOT
+POOL_WIDTH = 15 * FOOT
+POOL_CENTER_X = 7.5 * 3 * FOOT
+POOL_CENTER_Y = -12 * 3 * FOOT
+POOL_SHALLOW_DEPTH = 4 * FOOT
+POOL_DEEP_DEPTH = 4.5 * FOOT
 # Deep end is on the "reverse" side (left, near the house) of the pool footprint
 # and the shallow end is on the right (toward the lower deck edge).
 POOL_DEEP_END_SIDE = "left"  # left | right
 PATIO_BORDER = 2 * FOOT
 POOL_TILE_SIZE = 2 * FOOT
-# The tile surround retains its established left edge and ends at X=12.852m.
-# Derive the water length from those outer limits and the border on both ends.
-POOL_TILE_SURROUND_MIN_X = 2.667 * 3 * FOOT
-POOL_TILE_SURROUND_MAX_X = 12_852 * MM
-POOL_LENGTH = POOL_TILE_SURROUND_MAX_X - POOL_TILE_SURROUND_MIN_X - 2 * PATIO_BORDER
+POOL_PROFILE_SEGMENTS = 48
 DECK_TO_POOL_CLEARANCE = 6 * FOOT
 GRASS_THICKNESS = 2 * INCH
 ROCK_BED_THICKNESS = 3 * INCH
@@ -148,6 +147,7 @@ POOL_COPING_THICKNESS = 3 * INCH
 POOL_STEP_WIDTH = 4 * FOOT
 POOL_STEP_TREAD = 12 * INCH
 POOL_STEP_RISE = 10 * INCH
+POOL_SHELL_COLOR = (0.14, 0.18, 0.20)
 
 RAILING_HEIGHT = 42 * INCH
 RAILING_RAIL_SIZE = 2 * INCH

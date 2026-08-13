@@ -10,12 +10,13 @@ from typing import Any
 from build123d import Cone, Plane, Polyline, Sphere, extrude, make_face
 from python_cad_tools.context import BuildContext
 from python_cad_tools.elements import DesignElement, DesignModel, Dimensions, IfcMapping, MaterialSpec, Placement
-from python_cad_tools.geometry import box, cylinder_between, prism_between
+from python_cad_tools.geometry import bounds, box, cylinder_between, prism_between
 from python_cad_tools.units import FOOT, INCH, MM, Length, mm, to_mm
 
 import config as cfg
 
 ZERO = 0 * MM
+CUT_MARGIN = 1 * MM
 Color = tuple[float, float, float]
 Point3 = tuple[Length, Length, Length]
 Point2 = tuple[Length, Length]
@@ -123,6 +124,41 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value).lower()).strip("_")
 
 
+def _capsule_solid(length: Length, width: Length, height: Length, origin: Point3 = (ZERO, ZERO, ZERO)):
+    """Return a deterministic oval/capsule solid with rounded ends."""
+    if to_mm(length) < to_mm(width):
+        raise ValueError("Capsule length must be at least its width")
+    x, y, z = origin
+    radius = width / 2
+    body_length = length - width
+    center = box(body_length, width, height, origin=(x + radius, y, z))
+    left_cap = cylinder_between((x + radius, y + radius, z), (x + radius, y + radius, z + height), radius)
+    right_cap = cylinder_between((x + length - radius, y + radius, z), (x + length - radius, y + radius, z + height), radius)
+    return center.fuse(left_cap, right_cap)
+
+
+def _cut_box(length: Length, depth: Length, height: Length, origin: Point3) -> Any:
+    """Return a slightly oversized cutter box to avoid coplanar booleans."""
+    margin = CUT_MARGIN / 2
+    return box(
+        length + CUT_MARGIN,
+        depth + CUT_MARGIN,
+        height + CUT_MARGIN,
+        origin=(origin[0] - margin, origin[1] - margin, origin[2] - margin),
+    )
+
+
+def _cut_capsule(length: Length, width: Length, height: Length, origin: Point3) -> Any:
+    """Return a slightly oversized capsule cutter to avoid coplanar booleans."""
+    margin = CUT_MARGIN / 2
+    return _capsule_solid(
+        length + CUT_MARGIN,
+        width + CUT_MARGIN,
+        height + CUT_MARGIN,
+        origin=(origin[0] - margin, origin[1] - margin, origin[2] - margin),
+    )
+
+
 # Human-readable material names and densities (kg/m³) keyed by (category, color_rgb).
 # Each entry: human_readable_name, density_kg_m3
 # Material IDs (generated from category + rounded RGB) remain stable for backward compatibility.
@@ -161,6 +197,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("outdoor-kitchen", (0.22, 0.22, 0.22)): ("Cabinet Door (Wood)", 600.0),
     # Pool
     ("pool", cfg.WATER_COLOR): ("Water", 1000.0),
+    ("pool", cfg.POOL_SHELL_COLOR): ("Pool Shell", 450.0),
     # Railing
     ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
     # Site
@@ -353,26 +390,94 @@ def build_model(context: BuildContext) -> DesignModel:
     builder = ModelBuilder()
 
     def add_deck_boards(
-        prefix: str, x: Length, y: Length, length: Length, depth: Length, z: Length, direction: str
+        prefix: str,
+        x: Length,
+        y: Length,
+        length: Length,
+        depth: Length,
+        z: Length,
+        direction: str,
+        cutouts: list[tuple[Length, Length, Length, Length]] | None = None,
+        capsule_cutouts: list[tuple[Length, Length, Length, Length]] | None = None,
     ) -> None:
         board_z = z - cfg.DECK_BOARD_THICKNESS
         pitch = cfg.DECK_BOARD_WIDTH + cfg.DECK_BOARD_GAP
         index = 1
+        deck_cutouts = cutouts or []
+        deck_capsules = capsule_cutouts or []
+
+        def subtract_spans(
+            spans: list[tuple[Length, Length]],
+            cut_start: Length,
+            cut_end: Length,
+        ) -> list[tuple[Length, Length]]:
+            remaining: list[tuple[Length, Length]] = []
+            for span_start, span_end in spans:
+                if cut_end <= span_start or cut_start >= span_end:
+                    remaining.append((span_start, span_end))
+                    continue
+                if span_start < cut_start:
+                    remaining.append((span_start, cut_start))
+                if cut_end < span_end:
+                    remaining.append((cut_end, span_end))
+            return remaining
+
+        def capsule_cutout_span(
+            board_start_y: Length,
+            board_end_y: Length,
+            cut_x: Length,
+            cut_y: Length,
+            cut_length: Length,
+            cut_width: Length,
+        ) -> tuple[Length, Length] | None:
+            overlap_start = max(board_start_y, cut_y)
+            overlap_end = min(board_end_y, cut_y + cut_width)
+            if overlap_end <= overlap_start:
+                return None
+
+            center_y = cut_y + cut_width / 2
+            if overlap_start <= center_y <= overlap_end:
+                return cut_x, cut_x + cut_length
+
+            sample_y = overlap_start if to_mm(abs(overlap_start - center_y)) <= to_mm(abs(overlap_end - center_y)) else overlap_end
+            radius_mm = to_mm(cut_width / 2)
+            dy_mm = to_mm(abs(sample_y - center_y))
+            if dy_mm >= radius_mm:
+                return cut_x + cut_width / 2, cut_x + cut_length - cut_width / 2
+            inset_mm = radius_mm - math.sqrt(max(0.0, radius_mm * radius_mm - dy_mm * dy_mm))
+            inset = inset_mm * MM
+            return cut_x + inset, cut_x + cut_length - inset
+
         if direction == "x":
             board_y = y
             while board_y < y + depth:
                 board_depth = min(cfg.DECK_BOARD_WIDTH, y + depth - board_y)
-                builder.add_box(
-                    "deck-board",
-                    f"{prefix}DeckBoard_{index:02d}",
-                    length,
-                    board_depth,
-                    cfg.DECK_BOARD_THICKNESS,
-                    x,
-                    board_y,
-                    board_z,
-                    cfg.DECK_COLOR,
-                )
+                board_spans: list[tuple[Length, Length]] = [(x, x + length)]
+                for cut_x0, cut_x1, cut_y0, cut_y1 in deck_cutouts:
+                    if board_y < cut_y1 and board_y + board_depth > cut_y0:
+                        board_spans = subtract_spans(board_spans, cut_x0, cut_x1)
+                for cut_x, cut_y, cut_length, cut_width in deck_capsules:
+                    capsule_span = capsule_cutout_span(board_y, board_y + board_depth, cut_x, cut_y, cut_length, cut_width)
+                    if capsule_span is not None:
+                        board_spans = subtract_spans(board_spans, capsule_span[0], capsule_span[1])
+                for segment_index, (span_start, span_end) in enumerate(board_spans, 1):
+                    segment_length = span_end - span_start
+                    if to_mm(segment_length) <= 0:
+                        continue
+                    segment_suffix = ""
+                    if len(board_spans) > 1:
+                        segment_suffix = "_Left" if segment_index == 1 else "_Right"
+                    builder.add_box(
+                        "deck-board",
+                        f"{prefix}DeckBoard_{index:02d}{segment_suffix}",
+                        segment_length,
+                        board_depth,
+                        cfg.DECK_BOARD_THICKNESS,
+                        span_start,
+                        board_y,
+                        board_z,
+                        cfg.DECK_COLOR,
+                    )
                 board_y = board_y + pitch
                 index += 1
         else:
@@ -404,12 +509,87 @@ def build_model(context: BuildContext) -> DesignModel:
         *,
         mid_beam_y: Length | None = None,
         mid_beam_properties: dict[str, Any] | None = None,
+        capsule_cutouts: list[tuple[Length, Length, Length, Length]] | None = None,
     ) -> None:
         frame_top = z - cfg.DECK_BOARD_THICKNESS
         joist_z = frame_top - cfg.JOIST_HEIGHT
         beam_z = joist_z - cfg.BEAM_HEIGHT
-        builder.add_box(
-            "deck-framing",
+        # Clip joist-level framing to the pool capsule so the lower front rim
+        # joist and intersecting joists stop at the pool edge instead of
+        # running through the pool footprint.
+        joist_cutouts = [
+            _cut_capsule(cut_length, cut_width, cfg.JOIST_HEIGHT, origin=(cut_x, cut_y, joist_z))
+            for cut_x, cut_y, cut_length, cut_width in (capsule_cutouts or [])
+        ]
+
+        def add_framing_box(
+            name: str,
+            length: Length,
+            depth: Length,
+            height: Length,
+            x: Length,
+            y: Length,
+            z: Length,
+            color: Color,
+            *,
+            drawing_label: bool = False,
+            properties: dict[str, Any] | None = None,
+            physical: bool = True,
+            parent_id: str | None = None,
+            export_formats: set[str] | None = None,
+            stable_id: str | None = None,
+            ifc_mapping: IfcMapping | None = None,
+        ) -> None:
+            shape = box(length, depth, height, origin=(x, y, z))
+            for cutout in joist_cutouts:
+                shape = shape.cut(cutout)
+            pieces = shape.solids()
+            if len(pieces) <= 1:
+                builder.add_shape(
+                    "deck-framing",
+                    name,
+                    shape,
+                    color,
+                    Dimensions(to_mm(length), to_mm(depth), to_mm(height)),
+                    placement=(x, y, z),
+                    drawing_label=drawing_label,
+                    properties=properties,
+                    physical=physical,
+                    parent_id=parent_id,
+                    export_formats=export_formats,
+                    stable_id=stable_id,
+                    ifc_mapping=ifc_mapping,
+                )
+                return
+            # A pool cutout can bisect a framing member along its own length,
+            # leaving disconnected remnants; a single element's geometry must
+            # be one Solid, so emit each remnant as its own physical element
+            # (matching add_deck_boards' _Left/_Right split above).
+            pieces = sorted(pieces, key=lambda solid: bounds(solid)[0])
+            suffixes = ["_Left", "_Right"] if len(pieces) == 2 else [f"_{index:02d}" for index in range(1, len(pieces) + 1)]
+            for suffix, solid in zip(suffixes, pieces):
+                piece_bounds = bounds(solid)
+                builder.add_shape(
+                    "deck-framing",
+                    f"{name}{suffix}",
+                    solid,
+                    color,
+                    Dimensions(
+                        piece_bounds[3] - piece_bounds[0],
+                        piece_bounds[4] - piece_bounds[1],
+                        piece_bounds[5] - piece_bounds[2],
+                    ),
+                    placement=(mm(piece_bounds[0]), mm(piece_bounds[1]), mm(piece_bounds[2])),
+                    drawing_label=drawing_label,
+                    properties=properties,
+                    physical=physical,
+                    parent_id=parent_id,
+                    export_formats=export_formats,
+                    stable_id=None,
+                    ifc_mapping=ifc_mapping,
+                )
+
+        add_framing_box(
             f"{prefix}FrontRimJoist",
             length,
             cfg.JOIST_WIDTH,
@@ -419,8 +599,7 @@ def build_model(context: BuildContext) -> DesignModel:
             joist_z,
             cfg.SKIRTING_COLOR,
         )
-        builder.add_box(
-            "deck-framing",
+        add_framing_box(
             f"{prefix}BackLedger",
             length,
             cfg.JOIST_WIDTH,
@@ -430,8 +609,7 @@ def build_model(context: BuildContext) -> DesignModel:
             joist_z,
             cfg.SKIRTING_COLOR,
         )
-        builder.add_box(
-            "deck-framing",
+        add_framing_box(
             f"{prefix}LeftRimJoist",
             cfg.JOIST_WIDTH,
             depth,
@@ -441,8 +619,7 @@ def build_model(context: BuildContext) -> DesignModel:
             joist_z,
             cfg.SKIRTING_COLOR,
         )
-        builder.add_box(
-            "deck-framing",
+        add_framing_box(
             f"{prefix}RightRimJoist",
             cfg.JOIST_WIDTH,
             depth,
@@ -455,8 +632,7 @@ def build_model(context: BuildContext) -> DesignModel:
         joist_x = x + cfg.JOIST_SPACING
         joist_index = 1
         while joist_x < x + length - cfg.JOIST_WIDTH:
-            builder.add_box(
-                "deck-framing",
+            add_framing_box(
                 f"{prefix}Joist_{joist_index:02d}",
                 cfg.JOIST_WIDTH,
                 depth,
@@ -468,8 +644,7 @@ def build_model(context: BuildContext) -> DesignModel:
             )
             joist_x = joist_x + cfg.JOIST_SPACING
             joist_index += 1
-        builder.add_box(
-            "deck-framing",
+        add_framing_box(
             f"{prefix}FrontBeam",
             length,
             cfg.BEAM_WIDTH,
@@ -481,8 +656,7 @@ def build_model(context: BuildContext) -> DesignModel:
         )
         if depth > 8 * cfg.FOOT:
             resolved_mid_beam_y = mid_beam_y if mid_beam_y is not None else y + depth / 2 - cfg.BEAM_WIDTH / 2
-            builder.add_box(
-                "deck-framing",
+            add_framing_box(
                 f"{prefix}MidBeam",
                 length,
                 cfg.BEAM_WIDTH,
@@ -494,8 +668,7 @@ def build_model(context: BuildContext) -> DesignModel:
                 properties=mid_beam_properties,
             )
         for index, (post_x, post_y) in enumerate(post_points, 1):
-            builder.add_box(
-                "deck-framing",
+            add_framing_box(
                 f"{prefix}SupportPost_{index:02d}",
                 cfg.SUPPORT_POST_SIZE,
                 cfg.SUPPORT_POST_SIZE,
@@ -510,10 +683,10 @@ def build_model(context: BuildContext) -> DesignModel:
     sliding_door_y = -1.5 * INCH
     house_mass = box(cfg.HOUSE_WIDTH, cfg.HOUSE_DEPTH, cfg.HOUSE_HEIGHT, origin=(ZERO, ZERO, ZERO))
     sliding_door_opening = box(
-        cfg.DOOR_WIDTH,
-        cfg.HOUSE_DEPTH,
-        cfg.DOOR_HEIGHT,
-        origin=(sliding_door_x, ZERO, cfg.UPPER_DECK_ELEVATION),
+        cfg.DOOR_WIDTH + CUT_MARGIN,
+        cfg.HOUSE_DEPTH + CUT_MARGIN,
+        cfg.DOOR_HEIGHT + CUT_MARGIN,
+        origin=(sliding_door_x - CUT_MARGIN / 2, ZERO - CUT_MARGIN / 2, cfg.UPPER_DECK_ELEVATION - CUT_MARGIN / 2),
     )
     builder.add_shape(
         "house",
@@ -554,8 +727,17 @@ def build_model(context: BuildContext) -> DesignModel:
     )
 
     lower_x = ZERO
-    hot_tub_x = cfg.UPPER_DECK_WIDTH + cfg.LOWER_DECK_WIDTH - cfg.HOT_TUB_WIDTH - cfg.FOOT
-    hot_tub_y = -(cfg.HOT_TUB_DEPTH + 1.5 * cfg.FOOT)
+    # Main above-ground oval pool centered at x=7.5yd, y=-12yd and set to a
+    # standard above-ground wall height so it stays shorter than the deck.
+    pool_length = cfg.POOL_LENGTH
+    pool_width = cfg.POOL_WIDTH
+    pool_x = cfg.POOL_CENTER_X - pool_length / 2
+    pool_y = cfg.POOL_CENTER_Y - pool_width / 2
+    pool_z = cfg.LOWER_DECK_ELEVATION - cfg.POOL_DEEP_DEPTH
+    # Keep the hot tub fully inside the lower deck footprint, inset 1ft from
+    # the deck's outer X edge and 1ft from the Y-axis edge.
+    hot_tub_x = lower_x + cfg.LOWER_DECK_WIDTH - cfg.HOT_TUB_WIDTH - cfg.FOOT
+    hot_tub_y = -(cfg.HOT_TUB_DEPTH + cfg.FOOT)
     lower_mid_beam_y = hot_tub_y - cfg.BEAM_FEATURE_CLEARANCE - cfg.BEAM_WIDTH
     add_deck_boards(
         "Lower",
@@ -565,6 +747,8 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.LOWER_DECK_DEPTH,
         cfg.LOWER_DECK_ELEVATION,
         "x",
+        # Follow the pool capsule so the deck wraps around the rounded pool ends.
+        capsule_cutouts=[(pool_x, pool_y, pool_length, pool_width)],
     )
     add_deck_framing(
         "Lower",
@@ -587,6 +771,7 @@ def build_model(context: BuildContext) -> DesignModel:
             "clear_of": "complex.feature.hot_tub_placeholder",
             "minimum_clearance_mm": to_mm(cfg.BEAM_FEATURE_CLEARANCE),
         },
+        capsule_cutouts=[(pool_x, pool_y, pool_length, pool_width)],
     )
 
     # Shed-style roof attached high on the house wall and sloping down toward
@@ -687,10 +872,31 @@ def build_model(context: BuildContext) -> DesignModel:
     post = 8 * INCH
     front_post_height = roof_front_z - cfg.ROOF_THICKNESS - cfg.BEAM_HEIGHT - cfg.UPPER_DECK_ELEVATION
     front_post_count = max(2, int(cfg.ROOF_FRONT_POSTS))
-    front_post_span = cfg.UPPER_DECK_WIDTH - post
+    upper_stair_steps = max(
+        1, math.ceil(abs(to_mm(cfg.UPPER_DECK_ELEVATION - cfg.LOWER_DECK_ELEVATION)) / to_mm(cfg.MAX_RISER))
+    )
+    upper_stair_start = (cfg.UPPER_DECK_WIDTH, -cfg.UPPER_DECK_DEPTH)
+    upper_stair_end = (
+        cfg.UPPER_DECK_WIDTH + upper_stair_steps * cfg.TREAD_DEPTH,
+        -cfg.UPPER_DECK_DEPTH - upper_stair_steps * cfg.TREAD_DEPTH,
+    )
+    stair_dx = to_mm(upper_stair_end[0] - upper_stair_start[0])
+    stair_dy = to_mm(upper_stair_end[1] - upper_stair_start[1])
+    stair_run = math.hypot(stair_dx, stair_dy)
+    stair_px = -stair_dy / stair_run
+    stair_py = stair_dx / stair_run
+    stair_rail_offset = to_mm(cfg.STAIR_WIDTH) / 2
+    upper_stair_left_top = (
+        mm(to_mm(upper_stair_start[0]) - stair_px * stair_rail_offset),
+        mm(to_mm(upper_stair_start[1]) - stair_py * stair_rail_offset),
+    )
     for index in range(front_post_count):
-        ratio = index / (front_post_count - 1)
-        post_x = front_post_span * ratio
+        if index == front_post_count - 1:
+            post_x, post_y = upper_stair_left_top
+        else:
+            ratio = index / (front_post_count - 1)
+            post_x = cfg.UPPER_DECK_WIDTH * ratio
+            post_y = -cfg.UPPER_DECK_DEPTH
         builder.add_box(
             "roof-framing",
             f"RoofFrontPost_{index + 1}",
@@ -698,7 +904,7 @@ def build_model(context: BuildContext) -> DesignModel:
             post,
             front_post_height,
             post_x,
-            -cfg.UPPER_DECK_DEPTH,
+            post_y,
             cfg.UPPER_DECK_ELEVATION,
             (0.92, 0.92, 0.90),
         )
@@ -794,10 +1000,10 @@ def build_model(context: BuildContext) -> DesignModel:
         origin=(ZERO, -cfg.FIREPLACE_DEPTH, ZERO),
     )
     firebox_void = box(
-        14 * INCH,
-        cfg.FIREPLACE_OPENING_WIDTH,
-        cfg.FIREPLACE_OPENING_HEIGHT,
-        origin=(cfg.FIREPLACE_WIDTH - 14 * INCH, firebox_y, firebox_z),
+        14 * INCH + CUT_MARGIN,
+        cfg.FIREPLACE_OPENING_WIDTH + CUT_MARGIN,
+        cfg.FIREPLACE_OPENING_HEIGHT + CUT_MARGIN,
+        origin=(cfg.FIREPLACE_WIDTH - 14 * INCH - CUT_MARGIN / 2, firebox_y - CUT_MARGIN / 2, firebox_z - CUT_MARGIN / 2),
     )
     builder.add_shape(
         "fireplace",
@@ -1018,10 +1224,10 @@ def build_model(context: BuildContext) -> DesignModel:
         origin=(kitchen_x - 2 * INCH, kitchen_y - 2 * INCH, counter_z),
     )
     sink_cutout = box(
-        cfg.KITCHEN_SINK_WIDTH,
-        cfg.KITCHEN_SINK_DEPTH,
-        cfg.KITCHEN_COUNTER_THICKNESS,
-        origin=(sink_x, sink_y, counter_z),
+        cfg.KITCHEN_SINK_WIDTH + CUT_MARGIN,
+        cfg.KITCHEN_SINK_DEPTH + CUT_MARGIN,
+        cfg.KITCHEN_COUNTER_THICKNESS + CUT_MARGIN,
+        origin=(sink_x - CUT_MARGIN / 2, sink_y - CUT_MARGIN / 2, counter_z - CUT_MARGIN / 2),
     )
     builder.add_shape(
         "outdoor-kitchen",
@@ -1129,13 +1335,13 @@ def build_model(context: BuildContext) -> DesignModel:
         origin=(hot_tub_x, hot_tub_y, hot_tub_z),
     )
     hot_tub_basin = box(
-        cfg.HOT_TUB_WIDTH - 2 * cfg.HOT_TUB_RIM_WIDTH,
-        cfg.HOT_TUB_DEPTH - 2 * cfg.HOT_TUB_RIM_WIDTH,
-        cfg.HOT_TUB_TOTAL_HEIGHT - cfg.HOT_TUB_SHELL_THICKNESS,
+        cfg.HOT_TUB_WIDTH - 2 * cfg.HOT_TUB_RIM_WIDTH + CUT_MARGIN,
+        cfg.HOT_TUB_DEPTH - 2 * cfg.HOT_TUB_RIM_WIDTH + CUT_MARGIN,
+        cfg.HOT_TUB_TOTAL_HEIGHT - cfg.HOT_TUB_SHELL_THICKNESS + CUT_MARGIN,
         origin=(
-            hot_tub_x + cfg.HOT_TUB_RIM_WIDTH,
-            hot_tub_y + cfg.HOT_TUB_RIM_WIDTH,
-            hot_tub_z + cfg.HOT_TUB_SHELL_THICKNESS,
+            hot_tub_x + cfg.HOT_TUB_RIM_WIDTH - CUT_MARGIN / 2,
+            hot_tub_y + cfg.HOT_TUB_RIM_WIDTH - CUT_MARGIN / 2,
+            hot_tub_z + cfg.HOT_TUB_SHELL_THICKNESS - CUT_MARGIN / 2,
         ),
     )
     builder.add_shape(
@@ -1259,6 +1465,21 @@ def build_model(context: BuildContext) -> DesignModel:
         run = math.hypot(dx, dy)
         return dx, dy, run, -dy / run, dx / run
 
+    def stair_rail_top_points(
+        start: Point2,
+        end: Point2,
+        width: Length = cfg.STAIR_WIDTH,
+        left_rail_x_shift: Length = ZERO,
+    ) -> tuple[Point2, Point2]:
+        _, _, _, px, py = line_frame(start, end)
+        rail_offset = to_mm(width) / 2
+        left_extra_shift = to_mm(left_rail_x_shift)
+        left_offset = -rail_offset + left_extra_shift
+        right_offset = rail_offset
+        left_top = (mm(to_mm(start[0]) + px * left_offset), mm(to_mm(start[1]) + py * left_offset))
+        right_top = (mm(to_mm(start[0]) + px * right_offset), mm(to_mm(start[1]) + py * right_offset))
+        return left_top, right_top
+
     def stair_run(
         prefix: str,
         start: Point2,
@@ -1276,25 +1497,26 @@ def build_model(context: BuildContext) -> DesignModel:
         direction_y = dy / run
         riser_thickness = 1.25 * INCH
         riser_setback = (to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)) / 2
+        stair_skirt_width = 2 * INCH
+        stair_skirt_clearance = 0.125 * INCH
+        rail_offset = to_mm(width) / 2
+        skirt_offset = rail_offset + to_mm(stair_skirt_width) / 2 + to_mm(stair_skirt_clearance)
 
         # Check if stairs are diagonal (both dx and dy are non-zero)
         is_diagonal = abs(dx) > 0.1 and abs(dy) > 0.1
 
         if is_diagonal:
             # For diagonal stairs, use prism_between to create rotated treads
-            # The tread extends along the stair direction and perpendicular to it
+            # The tread spans from the left stair skirt to the right stair skirt.
             for index in range(1, steps + 1):
                 ratio = index / steps
                 center_x = to_mm(start[0]) + dx * ratio
                 center_y = to_mm(start[1]) + dy * ratio
                 tread_z = to_mm(start_z) - rise * index
-
-                # Calculate tread start and end points along the stair direction
-                # Tread extends cfg.TREAD_DEPTH along the stair direction
-                tread_start_x = center_x - direction_x * to_mm(cfg.TREAD_DEPTH) / 2
-                tread_start_y = center_y - direction_y * to_mm(cfg.TREAD_DEPTH) / 2
-                tread_end_x = center_x + direction_x * to_mm(cfg.TREAD_DEPTH) / 2
-                tread_end_y = center_y + direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+                tread_start_x = center_x - px * skirt_offset
+                tread_start_y = center_y - py * skirt_offset
+                tread_end_x = center_x + px * skirt_offset
+                tread_end_y = center_y + py * skirt_offset
 
                 builder.add_prism(
                     "stair",
@@ -1302,10 +1524,10 @@ def build_model(context: BuildContext) -> DesignModel:
                     (
                         mm(tread_start_x),
                         mm(tread_start_y),
-                        start_z + (end_z - start_z) * ratio - cfg.DECK_BOARD_THICKNESS,
+                        mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS)),
                     ),
-                    (mm(tread_end_x), mm(tread_end_y), start_z + (end_z - start_z) * ratio - cfg.DECK_BOARD_THICKNESS),
-                    width,
+                    (mm(tread_end_x), mm(tread_end_y), mm(tread_z - to_mm(cfg.DECK_BOARD_THICKNESS))),
+                    cfg.TREAD_DEPTH,
                     cfg.DECK_BOARD_THICKNESS,
                     cfg.DECK_COLOR,
                 )
@@ -1364,10 +1586,6 @@ def build_model(context: BuildContext) -> DesignModel:
                     cfg.SKIRTING_COLOR,
                 )
 
-        stair_skirt_width = 2 * INCH
-        stair_skirt_clearance = 0.125 * INCH
-        rail_offset = to_mm(width) / 2
-        skirt_offset = rail_offset + to_mm(stair_skirt_width) / 2 + to_mm(stair_skirt_clearance)
         for side_name, side_sign in (("Left", -1), ("Right", 1)):
             extra_shift = to_mm(left_rail_x_shift) if side_name == "Left" else 0.0
             offset = side_sign * rail_offset + extra_shift
@@ -1435,13 +1653,13 @@ def build_model(context: BuildContext) -> DesignModel:
     upper_access_panel_max_y = upper_mid_beam_y - cfg.BEAM_FEATURE_CLEARANCE
     upper_access_panel_y = upper_access_panel_max_y - cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH
     upper_access_panel_opening = box(
-        skirt_thickness,
-        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH,
-        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT,
+        skirt_thickness + CUT_MARGIN,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_WIDTH + CUT_MARGIN,
+        cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_HEIGHT + CUT_MARGIN,
         origin=(
-            -skirt_thickness,
-            upper_access_panel_y,
-            cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_SILL,
+            -skirt_thickness - CUT_MARGIN / 2,
+            upper_access_panel_y - CUT_MARGIN / 2,
+            cfg.UPPER_LEFT_SKIRT_ACCESS_PANEL_SILL - CUT_MARGIN / 2,
         ),
     )
     upper_left_skirt = box(
@@ -1492,6 +1710,22 @@ def build_model(context: BuildContext) -> DesignModel:
         -cfg.LOWER_DECK_DEPTH,
         ZERO,
         cfg.SKIRTING_COLOR,
+    )
+    builder.add_box(
+        "skirting",
+        "LowerDeckLeftSkirt",
+        skirt_thickness,
+        cfg.LOWER_DECK_DEPTH - cfg.UPPER_DECK_DEPTH,
+        lower_skirt_height,
+        -skirt_thickness,
+        -cfg.UPPER_DECK_DEPTH,
+        ZERO,
+        cfg.SKIRTING_COLOR,
+        properties={
+            "complex_type": "profiled_deck_skirt",
+            "assembly_role": "deck_enclosure",
+            "adjacent_to": "complex.railing.lower_left_rail",
+        },
     )
     # Access panel on the yard side of UpperMidBeam, aligned with its skirt opening.
     access_panel_color = (0.30, 0.25, 0.20)
@@ -1603,6 +1837,15 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
         axis="y",
     )
+    # LowerDeckLeftSkirt light (along y)
+    _add_skirt_lights(
+        "LowerDeckLeftSkirt",
+        -skirt_thickness - cfg.DECK_LIGHT_PROJECTION,
+        -cfg.UPPER_DECK_DEPTH,
+        cfg.LOWER_DECK_DEPTH - cfg.UPPER_DECK_DEPTH,
+        cfg.DECK_LIGHT_HEIGHT_ABOVE_GRADE,
+        axis="y",
+    )
 
     # Stair lighting — small light strips on stair tread risers
     def _add_stair_lights(
@@ -1686,6 +1929,7 @@ def build_model(context: BuildContext) -> DesignModel:
         cfg.LOWER_DECK_ELEVATION,
         axis="y",
     )
+    upper_stair_left_top, upper_stair_right_top = stair_rail_top_points(upper_stair_start, upper_stair_end)
     stair_run(
         "UpperStraight",
         upper_stair_start,
@@ -1712,22 +1956,93 @@ def build_model(context: BuildContext) -> DesignModel:
         "LowerFront", lower_stair_start, lower_stair_end, cfg.LOWER_DECK_ELEVATION, ZERO, lower_stair_width
     )
 
-    # Pool removed per design request
-    stair_end_y = -cfg.UPPER_DECK_DEPTH
-    pool_y = stair_end_y - cfg.DECK_TO_POOL_CLEARANCE - cfg.POOL_WIDTH - cfg.PATIO_BORDER
-    pool_length = cfg.POOL_LENGTH
-    pool_width = cfg.POOL_WIDTH
-    # Retain the established left tile edge; the derived pool length makes the
-    # outer edge of the right tile border end at the requested X coordinate.
-    pool_x = cfg.POOL_TILE_SURROUND_MIN_X + cfg.PATIO_BORDER
-    tile_border = cfg.PATIO_BORDER  # Used for grass calculations
+    # Keep the turf flush against the pool shell so there is no visible gap.
+    tile_border = ZERO
     pool_surround_right_x = pool_x + pool_length + tile_border
+
+    pool_shell_outer = _capsule_solid(pool_length, pool_width, cfg.POOL_DEEP_DEPTH, origin=(pool_x, pool_y, pool_z))
+    pool_shell_inner = _capsule_solid(
+        pool_length - 2 * cfg.POOL_SHELL_THICKNESS + CUT_MARGIN,
+        pool_width - 2 * cfg.POOL_SHELL_THICKNESS + CUT_MARGIN,
+        cfg.POOL_DEEP_DEPTH - cfg.POOL_SHELL_THICKNESS + CUT_MARGIN,
+        origin=(
+            pool_x + cfg.POOL_SHELL_THICKNESS - CUT_MARGIN / 2,
+            pool_y + cfg.POOL_SHELL_THICKNESS - CUT_MARGIN / 2,
+            pool_z + cfg.POOL_SHELL_THICKNESS - CUT_MARGIN / 2,
+        ),
+    )
+    pool_shell_id = "complex.pool.main_pool_shell_sloped5ft_to8ft"
+    builder.add_shape(
+        "pool",
+        "MainPoolShellSloped5ftTo8ft",
+        pool_shell_outer.cut(pool_shell_inner),
+        cfg.POOL_SHELL_COLOR,
+        Dimensions(
+            to_mm(pool_length),
+            to_mm(pool_width),
+            to_mm(cfg.POOL_DEEP_DEPTH),
+        ),
+        placement=(pool_x, pool_y, pool_z),
+        drawing_label=True,
+        stable_id=pool_shell_id,
+        properties={
+            "label": "Main Oval Pool Shell",
+            "complex_type": "above_ground_oval_pool_shell",
+            "assembly_role": "pool_shell",
+            "center_x_mm": to_mm(cfg.POOL_CENTER_X),
+            "center_y_mm": to_mm(cfg.POOL_CENTER_Y),
+        },
+    )
+    builder.add_shape(
+        "pool",
+        "MainPoolWaterSloped5ftTo8ft",
+        _capsule_solid(
+            pool_length - 2 * cfg.POOL_SHELL_THICKNESS,
+            pool_width - 2 * cfg.POOL_SHELL_THICKNESS,
+            cfg.POOL_DEEP_DEPTH - cfg.POOL_COPING_THICKNESS - cfg.POOL_SHELL_THICKNESS,
+            origin=(pool_x + cfg.POOL_SHELL_THICKNESS, pool_y + cfg.POOL_SHELL_THICKNESS, pool_z + cfg.POOL_SHELL_THICKNESS),
+        ),
+        cfg.WATER_COLOR,
+        Dimensions(
+            to_mm(pool_length - 2 * cfg.POOL_SHELL_THICKNESS),
+            to_mm(pool_width - 2 * cfg.POOL_SHELL_THICKNESS),
+            to_mm(cfg.POOL_DEEP_DEPTH - cfg.POOL_COPING_THICKNESS - cfg.POOL_SHELL_THICKNESS),
+        ),
+        placement=(pool_x + cfg.POOL_SHELL_THICKNESS, pool_y + cfg.POOL_SHELL_THICKNESS, pool_z + cfg.POOL_SHELL_THICKNESS),
+        drawing_label=True,
+        stable_id="complex.pool.main_pool_water_sloped5ft_to8ft",
+        parent_id=pool_shell_id,
+        properties={
+            "label": "Main Oval Pool Water",
+            "complex_type": "pool_water_surface",
+            "assembly_role": "water",
+            "center_x_mm": to_mm(cfg.POOL_CENTER_X),
+            "center_y_mm": to_mm(cfg.POOL_CENTER_Y),
+        },
+    )
+
+    # Add a narrow turf collar that follows the oval pool perimeter so the
+    # grass hugs the rounded/sloped ends without leaving corner gaps.
+    pool_grass_overlap = cfg.POOL_COPING_WIDTH / 2
+    grass_regions: list[Any] = [
+        _capsule_solid(
+            pool_length + 2 * pool_grass_overlap + CUT_MARGIN,
+            pool_width + 2 * pool_grass_overlap + CUT_MARGIN,
+            cfg.GRASS_THICKNESS + CUT_MARGIN,
+            origin=(pool_x - pool_grass_overlap - CUT_MARGIN / 2, pool_y - pool_grass_overlap - CUT_MARGIN / 2, -cfg.GRASS_THICKNESS - CUT_MARGIN / 2),
+        ).cut(
+            _capsule_solid(
+                pool_length + CUT_MARGIN,
+                pool_width + CUT_MARGIN,
+                cfg.GRASS_THICKNESS + CUT_MARGIN,
+                origin=(pool_x - CUT_MARGIN / 2, pool_y - CUT_MARGIN / 2, -cfg.GRASS_THICKNESS - CUT_MARGIN / 2),
+            )
+        )
+    ]
 
     # Assemble every turf region into one semantic CAD element. The compound
     # preserves the hardscape and access cutouts while exporting/selecting as
     # a single yard-grass object.
-    grass_regions: list[Any] = []
-
     # Grass strip between the lower deck stairs and the pool's near tile
     # border, spanning from tree line (x=0) to the pool surround right edge.
     lower_stair_end_y = -cfg.UPPER_DECK_DEPTH
@@ -1755,7 +2070,9 @@ def build_model(context: BuildContext) -> DesignModel:
     pool_south_depth = pool_south_far_y - pool_south_start_y
     vehicle_connector_end_y = pool_south_far_y
     vehicle_connector_start_y = vehicle_connector_end_y - cfg.VEHICLE_CONNECTOR_CLEAR_WIDTH
-    vehicle_connector_end_x = pool_x - tile_border
+    # Extend the turf all the way to the pool's left edge so the area under
+    # the deck/pool transition does not leave a bare strip.
+    vehicle_connector_end_x = pool_x
     if to_mm(pool_south_depth) > 0:
         grass_regions.append(
             box(
@@ -1944,11 +2261,40 @@ def build_model(context: BuildContext) -> DesignModel:
         shed_house_fence_thickness,
         cfg.PROPERTY_LINE_FENCE_HEIGHT,
         fence_x,
-        -shed_house_fence_thickness,
+        -shed_house_fence_thickness + 2 * INCH,
         ZERO,
         cfg.PROPERTY_LINE_FENCE_COLOR,
         drawing_label=True,
         properties=shed_house_fence_properties,
+    )
+
+    # White privacy fence running on the house datum from the house mass to the
+    # right property-line fence.  It uses the same 6ft solid white panel style
+    # so the house-side closure matches the property-line closure.
+    house_property_fence_length = cfg.PROPERTY_LINE_FENCE_X - cfg.HOUSE_WIDTH
+    house_property_fence_properties = {
+        "complex_type": "solid_privacy_fence",
+        "assembly_role": "house_line_screen",
+        "finish": "white_solid_panel",
+        "opacity": "solid",
+        "see_through": False,
+        "adjacent_to": "complex.house.house_mass",
+        "connects_to": "complex.site.property_line_solid_fence",
+        "side": "house_to_property_line",
+        "axis": "y0",
+    }
+    builder.add_box(
+        "site",
+        "HouseMassToPropertyLineSolidFence",
+        house_property_fence_length,
+        cfg.PROPERTY_LINE_FENCE_THICKNESS,
+        cfg.PROPERTY_LINE_FENCE_HEIGHT,
+        cfg.HOUSE_WIDTH,
+        -cfg.PROPERTY_LINE_FENCE_THICKNESS,
+        ZERO,
+        cfg.PROPERTY_LINE_FENCE_COLOR,
+        drawing_label=True,
+        properties=house_property_fence_properties,
     )
 
     # Solid white privacy fence on the right property line at X=55ft.  It runs
@@ -1965,6 +2311,7 @@ def build_model(context: BuildContext) -> DesignModel:
         "opacity": "solid",
         "see_through": False,
         "adjacent_to": "complex.site.unified_yard_grass",
+        "connects_to": "complex.site.house_mass_to_property_line_solid_fence",
         "side": "right_property_line",
     }
     builder.add_box(
@@ -2103,10 +2450,10 @@ def build_model(context: BuildContext) -> DesignModel:
             side_door_y = shed_front_y - cfg.SHED_SIDE_DOOR_WIDTH - 18 * INCH
             wall_shape = wall_shape.cut(
                 box(
-                    wall_thickness,
-                    cfg.SHED_SIDE_DOOR_WIDTH,
-                    cfg.SHED_SIDE_DOOR_HEIGHT,
-                    origin=(x, side_door_y, ZERO),
+                    wall_thickness + CUT_MARGIN,
+                    cfg.SHED_SIDE_DOOR_WIDTH + CUT_MARGIN,
+                    cfg.SHED_SIDE_DOOR_HEIGHT + CUT_MARGIN,
+                    origin=(x - CUT_MARGIN / 2, side_door_y - CUT_MARGIN / 2, ZERO - CUT_MARGIN / 2),
                 )
             )
             opening_for = "complex.shed.shed_side_service_door"
@@ -2114,10 +2461,10 @@ def build_model(context: BuildContext) -> DesignModel:
             front_door_x = shed_x + (cfg.SHED_WIDTH - cfg.SHED_FRONT_DOOR_WIDTH) / 2
             wall_shape = wall_shape.cut(
                 box(
-                    cfg.SHED_FRONT_DOOR_WIDTH,
-                    wall_thickness,
-                    cfg.SHED_FRONT_DOOR_HEIGHT,
-                    origin=(front_door_x, y, ZERO),
+                    cfg.SHED_FRONT_DOOR_WIDTH + CUT_MARGIN,
+                    wall_thickness + CUT_MARGIN,
+                    cfg.SHED_FRONT_DOOR_HEIGHT + CUT_MARGIN,
+                    origin=(front_door_x - CUT_MARGIN / 2, y - CUT_MARGIN / 2, ZERO - CUT_MARGIN / 2),
                 )
             )
             opening_for = "complex.shed.shed_front_double_door"
@@ -2295,7 +2642,6 @@ def build_model(context: BuildContext) -> DesignModel:
 
     # Positive-X evergreen line from the y=0 axis toward y=-14yd.  Retain an
     # exact 4ft pitch, stopping at the last center within the requested limit.
-    # Trees within the lower deck footprint (y=0 to y=-36ft) have been removed.
     _right_tree_count = (
         int(
             math.floor(
@@ -2307,9 +2653,6 @@ def build_model(context: BuildContext) -> DesignModel:
     for tree_index in range(_right_tree_count):
         tree_y = cfg.RIGHT_TREE_LINE_START_Y - tree_index * cfg.RIGHT_TREE_LINE_SPACING
         tree_number = tree_index + 1
-        # Skip trees that would pass through the extended lower deck (y=0 to y=-36ft)
-        if tree_y > -cfg.LOWER_DECK_DEPTH:
-            continue
         common_properties = {
             "complex_type": "evergreen_tree",
             "label": f"Right Yard Evergreen Tree {tree_number:02d}",
@@ -2381,7 +2724,13 @@ def build_model(context: BuildContext) -> DesignModel:
     rail_segment(
         "UpperFrontRail",
         (ZERO, -cfg.UPPER_DECK_DEPTH),
-        (cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH),
+        upper_stair_left_top,
+        cfg.UPPER_DECK_ELEVATION,
+    )
+    rail_segment(
+        "UpperStraightHouseRail",
+        upper_stair_right_top,
+        (cfg.UPPER_DECK_WIDTH, ZERO),
         cfg.UPPER_DECK_ELEVATION,
     )
     # StairSideRail connects UpperPost_R to the upper stair at the corner.
@@ -2396,16 +2745,47 @@ def build_model(context: BuildContext) -> DesignModel:
     rail_segment(
         "LowerRightRail",
         (lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH),
-        (lower_x + cfg.LOWER_DECK_WIDTH, ZERO),
+        (lower_x + cfg.LOWER_DECK_WIDTH, ZERO - 2 * INCH),
         cfg.LOWER_DECK_ELEVATION,
     )
-    rail_segment("LowerBackRail", (lower_x, ZERO), (lower_x + cfg.LOWER_DECK_WIDTH, ZERO), cfg.LOWER_DECK_ELEVATION)
-    # LowerFrontRail not needed when stairs span the full deck width
+    rail_segment(
+        "LowerLeftRail",
+        (ZERO, -cfg.UPPER_DECK_DEPTH),
+        (ZERO, -cfg.LOWER_DECK_DEPTH),
+        cfg.LOWER_DECK_ELEVATION,
+    )
+    lower_back_rail_y = ZERO - 2 * INCH
+    rail_segment(
+        "LowerBackRail",
+        (lower_x, lower_back_rail_y),
+        (lower_x + cfg.LOWER_DECK_WIDTH, lower_back_rail_y),
+        cfg.LOWER_DECK_ELEVATION,
+    )
+    # Lower front railing is split around the stair opening and the pool cutout.
+    lower_front_y = -cfg.LOWER_DECK_DEPTH
+    front_rail_start_x = lower_stair_width
+    pool_left_edge_x = pool_x
+    pool_right_edge_x = pool_x + pool_length
+    rail_post("LowerFrontRailStairBoundaryPost", front_rail_start_x, lower_front_y, cfg.LOWER_DECK_ELEVATION)
+    rail_post("LowerFrontRailPoolLeftPost", pool_left_edge_x, lower_front_y, cfg.LOWER_DECK_ELEVATION)
+    rail_post("LowerFrontRailPoolRightPost", pool_right_edge_x, lower_front_y, cfg.LOWER_DECK_ELEVATION)
+    rail_segment(
+        "LowerFrontRailLeft",
+        (front_rail_start_x, lower_front_y),
+        (pool_left_edge_x, lower_front_y),
+        cfg.LOWER_DECK_ELEVATION,
+    )
+    rail_segment(
+        "LowerFrontRailRight",
+        (pool_right_edge_x, lower_front_y),
+        (lower_x + cfg.LOWER_DECK_WIDTH, lower_front_y),
+        cfg.LOWER_DECK_ELEVATION,
+    )
     for name, post_x, post_y, post_z in [
         ("UpperPost_L", ZERO, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),
         ("UpperPost_R", cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),
-        ("LowerPost_LH", lower_x, ZERO, cfg.LOWER_DECK_ELEVATION),
-        ("LowerPost_RH", lower_x + cfg.LOWER_DECK_WIDTH, ZERO, cfg.LOWER_DECK_ELEVATION),
+        ("LowerPost_LH", lower_x, lower_back_rail_y, cfg.LOWER_DECK_ELEVATION),
+        ("LowerPost_RH", lower_x + cfg.LOWER_DECK_WIDTH, lower_back_rail_y, cfg.LOWER_DECK_ELEVATION),
         ("LowerPost_RF", lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH, cfg.LOWER_DECK_ELEVATION),
     ]:
         rail_post(name, post_x, post_y, post_z)
