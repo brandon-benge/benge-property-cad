@@ -101,6 +101,12 @@ def _ifc_mapping(category: str, name: str) -> IfcMapping:
         # Pool water, shells, and entry steps have no specific IFC4 class;
         # they remain proxies with the ELEMENT predefined type.
         return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "pool-equipment":
+        # Pool equipment (pump, heater, filter) and concrete pad have no specific
+        # IFC4 class; they remain proxies with the ELEMENT predefined type.
+        if "Slab" in name:
+            return IfcMapping("IfcSlab", "BASESLAB")
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
     if category == "outdoor-kitchen":
         if "SinkBasin" in name:
             return IfcMapping("IfcSanitaryTerminal", "SINK")
@@ -214,6 +220,11 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("site", cfg.PROPERTY_LINE_FENCE_COLOR): ("White Privacy Fence Panel", 500.0),
     # Rock bed
     ("rock-bed", cfg.ROCK_COLOR): ("Landscape Rock Bed", 1650.0),
+    # Pool equipment
+    ("pool-equipment", (0.50, 0.50, 0.50)): ("Concrete Equipment Pad", 2400.0),
+    ("pool-equipment", (0.15, 0.15, 0.15)): ("Pool Pump", 500.0),
+    ("pool-equipment", (0.25, 0.25, 0.25)): ("Pool Heater", 800.0),
+    ("pool-equipment", (0.35, 0.35, 0.35)): ("Pool Filter", 600.0),
     # Vegetation solids are visual landscaping proxies, not material takeoff
     # solids; an unspecified density prevents fabricated construction mass.
     ("site", TREE_GREEN): ("Evergreen Tree (Conceptual)", None),
@@ -391,6 +402,118 @@ class ModelBuilder:
             properties=properties,
             export_formats=export_formats,
         )
+
+
+def _capsule_curve_points(
+    center_x: Length,
+    center_y: Length,
+    length: Length,
+    width: Length,
+    offset_from_edge: Length,
+    spacing: Length,
+    start_offset: Length,
+) -> list[Point2]:
+    """Generate points along the south half of a capsule curve at a given offset from the edge.
+
+    The capsule is defined by its center, length (x-direction), and width (y-direction).
+    Points are generated along the south (negative Y) half of the capsule perimeter,
+    offset outward from the edge by offset_from_edge, with spacing between points.
+
+    Returns a list of (x, y) tuples representing plant positions.
+    """
+    points: list[Point2] = []
+
+    # Convert to mm for calculations
+    cx_mm = to_mm(center_x)
+    cy_mm = to_mm(center_y)
+    length_mm = to_mm(length)
+    width_mm = to_mm(width)
+    offset_mm = to_mm(offset_from_edge)
+    spacing_mm = to_mm(spacing)
+    start_offset_mm = to_mm(start_offset)
+
+    # Capsule geometry: rectangular body with semicircular ends
+    # The capsule extends from (cx - length/2) to (cx + length/2) in x
+    # and from (cy - width/2) to (cy + width/2) in y
+    # The curved ends have radius = width/2
+
+    radius = width_mm / 2
+    body_half_length = (length_mm - width_mm) / 2
+
+    # Offset radius (distance from pool center to plant center)
+    # Positive offset moves outward from the pool edge
+    offset_radius = radius + offset_mm
+
+    # South half: y ranges from cy - width/2 to cy
+    # We'll trace the south half of the capsule perimeter
+
+    # Start from the west curved end and move east
+    # West end center: (cx - body_half_length, cy)
+    # East end center: (cx + body_half_length, cy)
+
+    west_end_x = cx_mm - body_half_length
+    east_end_x = cx_mm + body_half_length
+
+    # Trace the south half of the capsule
+    # Part 1: West semicircle (from south point to east point of west end)
+    # Part 2: Straight south edge (from west end to east end)
+    # Part 3: East semicircle (from south point to west point of east end)
+
+    # For the south half, we go from the westernmost point of the south curve
+    # around to the easternmost point of the south curve
+
+    # Start at the westernmost point of the south curve
+    current_distance = start_offset_mm
+
+    # West semicircle: from angle 180° to 270° (or π to 3π/2)
+    # At angle θ, point is (west_end_x + radius*cos(θ), cy + radius*sin(θ))
+    # For south half, we want angles from 180° to 270°
+    angle_start = math.pi  # 180°
+
+    # Arc length of quarter circle = (π/2) * radius
+    west_arc_length = (math.pi / 2) * offset_radius
+
+    # Trace west semicircle
+    while current_distance < west_arc_length:
+        # Angle along the arc
+        angle = angle_start + (current_distance / offset_radius)
+        x = west_end_x + offset_radius * math.cos(angle)
+        y = cy_mm + offset_radius * math.sin(angle)
+        points.append((mm(x), mm(y)))
+        current_distance += spacing_mm
+
+    # Straight south edge: from west end to east end
+    # This is at y = cy - offset_radius (the offset distance from the pool center)
+    straight_y = cy_mm - offset_radius
+    straight_start_x = west_end_x
+    straight_end_x = east_end_x
+    straight_length = straight_end_x - straight_start_x
+
+    # Continue along the straight edge
+    distance_in_straight = current_distance - west_arc_length
+    while distance_in_straight < straight_length:
+        x = straight_start_x + distance_in_straight
+        y = straight_y
+        points.append((mm(x), mm(y)))
+        distance_in_straight += spacing_mm
+
+    # East semicircle: from angle 270° to 360° (or 3π/2 to 2π)
+    # At angle θ, point is (east_end_x + radius*cos(θ), cy + radius*sin(θ))
+    angle_start = 3 * math.pi / 2  # 270°
+
+    # Arc length of quarter circle = (π/2) * radius
+    east_arc_length = (math.pi / 2) * offset_radius
+
+    # Continue along east semicircle
+    distance_in_east = distance_in_straight - straight_length
+    while distance_in_east < east_arc_length:
+        angle = angle_start + (distance_in_east / offset_radius)
+        x = east_end_x + offset_radius * math.cos(angle)
+        y = cy_mm + offset_radius * math.sin(angle)
+        points.append((mm(x), mm(y)))
+        distance_in_east += spacing_mm
+
+    return points
 
 
 def build_model(context: BuildContext) -> DesignModel:
@@ -2556,6 +2679,153 @@ def build_model(context: BuildContext) -> DesignModel:
                     "adjacent_to": "complex.pool.main_pool_shell_sloped5ft_to8ft",
                 },
             )
+
+    # Skip Laurel bushes positioned within the south rock bed
+    # Plants are positioned 2 feet outside the pool edge (within the rock bed)
+    # and follow the curved shape of the capsule-shaped rock bed
+    # They are equally spaced 3 feet apart along the edge of the pool
+
+    # Calculate plant positions along the capsule curve
+    # The pool center is at (pool_x + pool_length/2, pool_y + pool_width/2)
+    pool_center_x = pool_x + pool_length / 2
+    pool_center_y = pool_y + pool_width / 2
+
+    # Offset from pool edge to plant center = 2 feet (outside the pool)
+    plant_offset = 2 * cfg.FOOT
+
+    # Get positions along the capsule curve
+    plant_positions = _capsule_curve_points(
+        pool_center_x,
+        pool_center_y,
+        pool_length,
+        pool_width,
+        plant_offset,
+        cfg.SKIP_LAUREL_SPACING,
+        cfg.SKIP_LAUREL_START_OFFSET,
+    )
+
+    # Place plants at calculated positions
+    for bush_index, (bush_center_x, bush_center_y) in enumerate(plant_positions, 1):
+        # add_box uses origin (lower-left corner), so subtract half width/depth to center
+        bush_origin_x = bush_center_x - cfg.SKIP_LAUREL_WIDTH / 2
+        bush_origin_y = bush_center_y - cfg.SKIP_LAUREL_DEPTH / 2
+
+        builder.add_box(
+            "site",
+            f"PoolSouthRockBedSkipLaurel_{bush_index:02d}",
+            cfg.SKIP_LAUREL_WIDTH,
+            cfg.SKIP_LAUREL_DEPTH,
+            cfg.SKIP_LAUREL_HEIGHT,
+            bush_origin_x,
+            bush_origin_y,
+            ZERO,
+            TREE_GREEN,
+            parent_id="complex.rock_bed.pool_south_rock_bed",
+            properties={
+                "complex_type": "skip_laurel_shrub",
+                "assembly_role": "landscape_planting",
+                "label": f"Skip Laurel {bush_index:02d}",
+                "spacing_mm": to_mm(cfg.SKIP_LAUREL_SPACING),
+            },
+        )
+
+    # Pool equipment slab on the South East edge of the pool
+    # Positioned just outside the rock bed on the southeast corner
+    # Pool southeast corner: pool_x + pool_length, pool_y (south edge)
+    # Rock bed extends 4 feet from pool edge, so slab starts at rock bed edge
+    pool_equipment_slab_x = pool_x + pool_length + rock_bed_width
+    pool_equipment_slab_y = pool_y - rock_bed_width - cfg.POOL_EQUIPMENT_SLAB_WIDTH + 8 * cfg.FOOT
+    pool_equipment_slab_z = ZERO
+
+    # Concrete slab (4'x4' pad)
+    builder.add_box(
+        "pool-equipment",
+        "PoolEquipmentSlab",
+        cfg.POOL_EQUIPMENT_SLAB_LENGTH,
+        cfg.POOL_EQUIPMENT_SLAB_WIDTH,
+        cfg.POOL_EQUIPMENT_SLAB_THICKNESS,
+        pool_equipment_slab_x,
+        pool_equipment_slab_y,
+        pool_equipment_slab_z,
+        (0.50, 0.50, 0.50),
+        drawing_label=True,
+        stable_id="complex.pool_equipment.equipment_slab",
+        properties={
+            "label": "Pool Equipment Slab",
+            "complex_type": "pool_equipment_pad",
+            "assembly_role": "foundation",
+            "dimensions": "5ft x 5ft x 4in concrete pad",
+            "adjacent_to": "complex.rock_bed.pool_south_rock_bed",
+        },
+    )
+
+    # Pool pump (cylindrical, 12" diameter, 18" tall)
+    pump_center_x = pool_equipment_slab_x + cfg.POOL_EQUIPMENT_SLAB_LENGTH / 4
+    pump_center_y = pool_equipment_slab_y + cfg.POOL_EQUIPMENT_SLAB_WIDTH / 4
+    pump_z = pool_equipment_slab_z + cfg.POOL_EQUIPMENT_SLAB_THICKNESS
+
+    builder.add_cylinder(
+        "pool-equipment",
+        "PoolPump",
+        (pump_center_x, pump_center_y, pump_z),
+        (pump_center_x, pump_center_y, pump_z + cfg.POOL_PUMP_HEIGHT),
+        cfg.POOL_PUMP_DIAMETER / 2,
+        (0.15, 0.15, 0.15),
+        parent_id="complex.pool_equipment.equipment_slab",
+        properties={
+            "complex_type": "pool_pump",
+            "assembly_role": "equipment",
+            "label": "Pool Pump",
+            "diameter_mm": to_mm(cfg.POOL_PUMP_DIAMETER),
+            "height_mm": to_mm(cfg.POOL_PUMP_HEIGHT),
+        },
+    )
+
+    # Pool heater (rectangular box, 24"L x 12"W x 18"H)
+    heater_x = pool_equipment_slab_x + cfg.POOL_EQUIPMENT_SLAB_LENGTH / 2
+    heater_y = pool_equipment_slab_y + cfg.POOL_EQUIPMENT_SLAB_WIDTH / 4
+    heater_z = pool_equipment_slab_z + cfg.POOL_EQUIPMENT_SLAB_THICKNESS
+
+    builder.add_box(
+        "pool-equipment",
+        "PoolHeater",
+        cfg.POOL_HEATER_LENGTH,
+        cfg.POOL_HEATER_WIDTH,
+        cfg.POOL_HEATER_HEIGHT,
+        heater_x - cfg.POOL_HEATER_LENGTH / 2,
+        heater_y - cfg.POOL_HEATER_WIDTH / 2,
+        heater_z,
+        (0.25, 0.25, 0.25),
+        parent_id="complex.pool_equipment.equipment_slab",
+        properties={
+            "complex_type": "pool_heater",
+            "assembly_role": "equipment",
+            "label": "Pool Heater",
+            "dimensions_mm": f"{to_mm(cfg.POOL_HEATER_LENGTH)}x{to_mm(cfg.POOL_HEATER_WIDTH)}x{to_mm(cfg.POOL_HEATER_HEIGHT)}",
+        },
+    )
+
+    # Pool filter (cylindrical, 18" diameter, 24" tall)
+    filter_center_x = pool_equipment_slab_x + 3 * cfg.POOL_EQUIPMENT_SLAB_LENGTH / 4
+    filter_center_y = pool_equipment_slab_y + 3 * cfg.POOL_EQUIPMENT_SLAB_WIDTH / 4
+    filter_z = pool_equipment_slab_z + cfg.POOL_EQUIPMENT_SLAB_THICKNESS
+
+    builder.add_cylinder(
+        "pool-equipment",
+        "PoolFilter",
+        (filter_center_x, filter_center_y, filter_z),
+        (filter_center_x, filter_center_y, filter_z + cfg.POOL_FILTER_HEIGHT),
+        cfg.POOL_FILTER_DIAMETER / 2,
+        (0.35, 0.35, 0.35),
+        parent_id="complex.pool_equipment.equipment_slab",
+        properties={
+            "complex_type": "pool_filter",
+            "assembly_role": "equipment",
+            "label": "Pool Filter",
+            "diameter_mm": to_mm(cfg.POOL_FILTER_DIAMETER),
+            "height_mm": to_mm(cfg.POOL_FILTER_HEIGHT),
+        },
+    )
 
     # Pool removed per design request
 
