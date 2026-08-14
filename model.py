@@ -2827,6 +2827,53 @@ def build_model(context: BuildContext) -> DesignModel:
         },
     )
 
+    # Skip Laurel plants on the south side of the PoolEquipmentSlab
+    # These plants run from the slab westward up to the PoolSouthRockBed
+    # but do not extend further east than the farthest point of the slab.
+    # The slab's south edge is at pool_equipment_slab_y
+    # The slab's east edge is at pool_equipment_slab_x + cfg.POOL_EQUIPMENT_SLAB_LENGTH
+    # The rock bed's east edge is at pool_x + pool_length + rock_bed_width
+    # Plants are positioned 1 foot south of the slab's south edge
+
+    slab_south_edge_y = pool_equipment_slab_y
+    slab_east_edge_x = pool_equipment_slab_x + cfg.POOL_EQUIPMENT_SLAB_LENGTH
+    rock_bed_east_edge_x = pool_x + pool_length + rock_bed_width
+    plant_south_offset = 1 * cfg.FOOT
+    plant_row_y = slab_south_edge_y - plant_south_offset
+
+    # Generate plant positions along the south side from the slab westward to the rock bed
+    # Plants are spaced at SKIP_LAUREL_SPACING intervals
+    plant_x = slab_east_edge_x - cfg.SKIP_LAUREL_WIDTH / 2
+    plant_index = 1
+
+    while plant_x >= rock_bed_east_edge_x:
+        # Position plant centered at plant_x, plant_row_y
+        bush_origin_x = plant_x - cfg.SKIP_LAUREL_WIDTH / 2
+        bush_origin_y = plant_row_y - cfg.SKIP_LAUREL_DEPTH / 2
+
+        builder.add_box(
+            "site",
+            f"PoolEquipmentSlabSouthSkipLaurel_{plant_index:02d}",
+            cfg.SKIP_LAUREL_WIDTH,
+            cfg.SKIP_LAUREL_DEPTH,
+            cfg.SKIP_LAUREL_HEIGHT,
+            bush_origin_x,
+            bush_origin_y,
+            ZERO,
+            TREE_GREEN,
+            parent_id="complex.pool_equipment.equipment_slab",
+            properties={
+                "complex_type": "skip_laurel_shrub",
+                "assembly_role": "landscape_planting",
+                "label": f"Skip Laurel South {plant_index:02d}",
+                "spacing_mm": to_mm(cfg.SKIP_LAUREL_SPACING),
+                "purpose": "screen_pool_equipment_from_south",
+            },
+        )
+
+        plant_x -= cfg.SKIP_LAUREL_SPACING
+        plant_index += 1
+
     # Pool removed per design request
 
     # Gable-roof yard shed wholly on the negative-X side.  Its near/front edge
