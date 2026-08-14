@@ -117,6 +117,9 @@ def _ifc_mapping(category: str, name: str) -> IfcMapping:
         # specific IFC4 class; they remain proxies with the ELEMENT predefined
         # type.
         return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
+    if category == "rock-bed":
+        # Rock beds are landscape elements with no specific IFC4 class.
+        return IfcMapping("IfcBuildingElementProxy", "ELEMENT")
     raise ValueError(f"No IFC mapping defined for {category!r} element {name!r}")
 
 
@@ -209,6 +212,8 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("site", cfg.ROCK_COLOR): ("Landscape Rock", 1650.0),
     ("site", cfg.FENCE_COLOR): ("Black Powder-Coated Aluminum Fence", 2700.0),
     ("site", cfg.PROPERTY_LINE_FENCE_COLOR): ("White Privacy Fence Panel", 500.0),
+    # Rock bed
+    ("rock-bed", cfg.ROCK_COLOR): ("Landscape Rock Bed", 1650.0),
     # Vegetation solids are visual landscaping proxies, not material takeoff
     # solids; an unspecified density prevents fabricated construction mass.
     ("site", TREE_GREEN): ("Evergreen Tree (Conceptual)", None),
@@ -2402,49 +2407,35 @@ def build_model(context: BuildContext) -> DesignModel:
             )
         )
 
-    # Fill triangular gaps at the pool ends where rectangular grass strips meet
+    # Fill rectangular gaps at the pool ends where rectangular grass strips meet
     # the rounded capsule ends. The capsule has rounded ends with radius = pool_width/2.
+    # Create rectangular regions that extend from the pool edge to the grass overlap edge.
 
-    # Left end triangular gap (at pool_x - pool_grass_overlap)
-    # Triangle vertices: pool corner, pool center, grass edge
-    left_triangle_x1 = pool_x - pool_grass_overlap
-    left_triangle_x2 = pool_x
-    left_triangle_y1 = pool_y
-    left_triangle_y2 = pool_y + pool_width
+    # Left end rectangular gap (at pool_x - pool_grass_overlap)
+    left_rect_x1 = pool_x - pool_grass_overlap
+    left_rect_y1 = pool_y
 
-    # Create triangular grass at left end
-    left_triangle_profile = Plane.XY * Polyline(
-        (to_mm(left_triangle_x1), to_mm(left_triangle_y1)),
-        (to_mm(left_triangle_x1), to_mm(left_triangle_y2)),
-        (to_mm(left_triangle_x2), to_mm(pool_y + pool_width / 2)),
-        close=True,
+    # Create rectangular grass at left end - covers full gap area
+    left_rect_solid = box(
+        pool_grass_overlap,
+        pool_width,
+        cfg.GRASS_THICKNESS,
+        origin=(left_rect_x1, left_rect_y1, -cfg.GRASS_THICKNESS),
     )
-    left_triangle_solid = (
-        extrude(make_face(left_triangle_profile), amount=to_mm(cfg.GRASS_THICKNESS))
-        .solid()
-        .translate((0.0, 0.0, -to_mm(cfg.GRASS_THICKNESS)))
-    )
-    grass_regions.append(left_triangle_solid)
+    grass_regions.append(left_rect_solid)
 
-    # Right end triangular gap (at pool_x + pool_length + pool_grass_overlap)
-    right_triangle_x1 = pool_x + pool_length
-    right_triangle_x2 = pool_x + pool_length + pool_grass_overlap
-    right_triangle_y1 = pool_y
-    right_triangle_y2 = pool_y + pool_width
+    # Right end rectangular gap (at pool_x + pool_length + pool_grass_overlap)
+    right_rect_x1 = pool_x + pool_length
+    right_rect_y1 = pool_y
 
-    # Create triangular grass at right end
-    right_triangle_profile = Plane.XY * Polyline(
-        (to_mm(right_triangle_x1), to_mm(pool_y + pool_width / 2)),
-        (to_mm(right_triangle_x2), to_mm(right_triangle_y1)),
-        (to_mm(right_triangle_x2), to_mm(right_triangle_y2)),
-        close=True,
+    # Create rectangular grass at right end - covers full gap area
+    right_rect_solid = box(
+        pool_grass_overlap,
+        pool_width,
+        cfg.GRASS_THICKNESS,
+        origin=(right_rect_x1, right_rect_y1, -cfg.GRASS_THICKNESS),
     )
-    right_triangle_solid = (
-        extrude(make_face(right_triangle_profile), amount=to_mm(cfg.GRASS_THICKNESS))
-        .solid()
-        .translate((0.0, 0.0, -to_mm(cfg.GRASS_THICKNESS)))
-    )
-    grass_regions.append(right_triangle_solid)
+    grass_regions.append(right_rect_solid)
 
     if grass_regions:
         unified_grass = grass_regions[0].fuse(*grass_regions[1:])
@@ -2466,6 +2457,105 @@ def build_model(context: BuildContext) -> DesignModel:
                 "assembly_role": "yard_grass_with_hardscape_exclusions",
             },
         )
+
+    # Rock bed around the south/back half of the pool (not connected to deck)
+    # 4 feet wide, 1 foot elevated above ground, oval-shaped to match pool curve
+    rock_bed_width = 4 * cfg.FOOT  # extends 4 feet from pool edge
+    rock_bed_height = 1 * cfg.FOOT  # 1 foot elevated above ground
+
+    # Create outer capsule (pool edge + rock bed width)
+    rock_bed_outer_length = pool_length + 2 * rock_bed_width
+    rock_bed_outer_width = pool_width + 2 * rock_bed_width
+    rock_bed_outer = _capsule_solid(
+        rock_bed_outer_length,
+        rock_bed_outer_width,
+        rock_bed_height,
+        origin=(
+            pool_x - rock_bed_width,
+            pool_y - rock_bed_width,
+            ZERO,
+        ),
+    )
+
+    # Create inner capsule (pool edge) to cut out the pool area
+    rock_bed_inner = _capsule_solid(
+        pool_length + CUT_MARGIN,
+        pool_width + CUT_MARGIN,
+        rock_bed_height + CUT_MARGIN,
+        origin=(
+            pool_x - CUT_MARGIN / 2,
+            pool_y - CUT_MARGIN / 2,
+            -CUT_MARGIN / 2,
+        ),
+    )
+
+    # Create the full ring, then cut to only the south/back half (negative Y side)
+    rock_bed_full_ring = rock_bed_outer.cut(rock_bed_inner)
+
+    # Cut to keep only the south half: create a cutter box for the north half
+    # The pool center is at pool_y + pool_width/2, so we cut everything above that
+    north_half_cutter = box(
+        rock_bed_outer_length + 2 * CUT_MARGIN,
+        rock_bed_outer_width + CUT_MARGIN,
+        rock_bed_height + 2 * CUT_MARGIN,
+        origin=(
+            pool_x - rock_bed_width - CUT_MARGIN,
+            pool_y + pool_width / 2,
+            -CUT_MARGIN,
+        ),
+    )
+    rock_bed_south_half = rock_bed_full_ring.cut(north_half_cutter)
+
+    pieces = rock_bed_south_half.solids()
+    if len(pieces) <= 1:
+        builder.add_shape(
+            "rock-bed",
+            "PoolSouthRockBed",
+            rock_bed_south_half,
+            cfg.ROCK_COLOR,
+            Dimensions(
+                to_mm(rock_bed_outer_length),
+                to_mm(rock_bed_outer_width / 2),
+                to_mm(rock_bed_height),
+            ),
+            placement=(pool_x - rock_bed_width, pool_y - rock_bed_width, ZERO),
+            drawing_label=True,
+            stable_id="complex.rock_bed.pool_south_rock_bed",
+            properties={
+                "label": "Pool South Rock Bed",
+                "complex_type": "landscape_rock_bed",
+                "assembly_role": "pool_surround",
+                "elevation_mm": to_mm(rock_bed_height),
+                "width_mm": to_mm(rock_bed_width),
+                "adjacent_to": "complex.pool.main_pool_shell_sloped5ft_to8ft",
+            },
+        )
+    else:
+        # If the cut creates multiple solids, emit each as a separate element
+        ordered_pieces = sorted(pieces, key=lambda solid: bounds(solid)[1])
+        for index, solid in enumerate(ordered_pieces, 1):
+            piece_bounds = bounds(solid)
+            builder.add_shape(
+                "rock-bed",
+                f"PoolSouthRockBed_{index:02d}",
+                solid,
+                cfg.ROCK_COLOR,
+                Dimensions(
+                    piece_bounds[3] - piece_bounds[0],
+                    piece_bounds[4] - piece_bounds[1],
+                    piece_bounds[5] - piece_bounds[2],
+                ),
+                placement=(mm(piece_bounds[0]), mm(piece_bounds[1]), mm(piece_bounds[2])),
+                stable_id=None,
+                properties={
+                    "label": "Pool South Rock Bed",
+                    "complex_type": "landscape_rock_bed",
+                    "assembly_role": "pool_surround",
+                    "elevation_mm": to_mm(rock_bed_height),
+                    "width_mm": to_mm(rock_bed_width),
+                    "adjacent_to": "complex.pool.main_pool_shell_sloped5ft_to8ft",
+                },
+            )
 
     # Pool removed per design request
 
