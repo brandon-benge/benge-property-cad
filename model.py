@@ -2402,6 +2402,50 @@ def build_model(context: BuildContext) -> DesignModel:
             )
         )
 
+    # Fill triangular gaps at the pool ends where rectangular grass strips meet
+    # the rounded capsule ends. The capsule has rounded ends with radius = pool_width/2.
+
+    # Left end triangular gap (at pool_x - pool_grass_overlap)
+    # Triangle vertices: pool corner, pool center, grass edge
+    left_triangle_x1 = pool_x - pool_grass_overlap
+    left_triangle_x2 = pool_x
+    left_triangle_y1 = pool_y
+    left_triangle_y2 = pool_y + pool_width
+
+    # Create triangular grass at left end
+    left_triangle_profile = Plane.XY * Polyline(
+        (to_mm(left_triangle_x1), to_mm(left_triangle_y1)),
+        (to_mm(left_triangle_x1), to_mm(left_triangle_y2)),
+        (to_mm(left_triangle_x2), to_mm(pool_y + pool_width / 2)),
+        close=True,
+    )
+    left_triangle_solid = (
+        extrude(make_face(left_triangle_profile), amount=to_mm(cfg.GRASS_THICKNESS))
+        .solid()
+        .translate((0.0, 0.0, -to_mm(cfg.GRASS_THICKNESS)))
+    )
+    grass_regions.append(left_triangle_solid)
+
+    # Right end triangular gap (at pool_x + pool_length + pool_grass_overlap)
+    right_triangle_x1 = pool_x + pool_length
+    right_triangle_x2 = pool_x + pool_length + pool_grass_overlap
+    right_triangle_y1 = pool_y
+    right_triangle_y2 = pool_y + pool_width
+
+    # Create triangular grass at right end
+    right_triangle_profile = Plane.XY * Polyline(
+        (to_mm(right_triangle_x1), to_mm(pool_y + pool_width / 2)),
+        (to_mm(right_triangle_x2), to_mm(right_triangle_y1)),
+        (to_mm(right_triangle_x2), to_mm(right_triangle_y2)),
+        close=True,
+    )
+    right_triangle_solid = (
+        extrude(make_face(right_triangle_profile), amount=to_mm(cfg.GRASS_THICKNESS))
+        .solid()
+        .translate((0.0, 0.0, -to_mm(cfg.GRASS_THICKNESS)))
+    )
+    grass_regions.append(right_triangle_solid)
+
     if grass_regions:
         unified_grass = grass_regions[0].fuse(*grass_regions[1:])
         builder.add_shape(
