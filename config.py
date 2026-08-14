@@ -224,23 +224,3 @@ POOL_HEATER_WIDTH = 12 * INCH
 POOL_HEATER_HEIGHT = 18 * INCH
 POOL_FILTER_DIAMETER = 18 * INCH
 POOL_FILTER_HEIGHT = 24 * INCH
-
-# Residential swing set on the east side of the yard
-# Positioned 15 feet south of the pool's southern edge, oriented east-west
-SWING_SET_LENGTH = 12 * FOOT  # East-west dimension
-SWING_SET_WIDTH = 8 * FOOT  # North-south dimension
-SWING_SET_PLATFORM_HEIGHT = 4 * FOOT  # Height of raised play platform
-SWING_SET_PLATFORM_LENGTH = 6 * FOOT  # Length of platform
-SWING_SET_PLATFORM_WIDTH = 4 * FOOT  # Width of platform
-SWING_SET_PLATFORM_THICKNESS = 1.5 * INCH  # Thickness of platform boards
-SWING_SET_POST_SIZE = 4 * INCH  # Square cross-section of support posts
-SWING_SET_POST_COUNT = 4  # Four structural support posts
-SWING_SET_SWING_HEIGHT = 8 * FOOT  # Height of swing beam
-SWING_SET_SWING_SEAT_HEIGHT = 1.5 * FOOT  # Height of swing seats above ground
-SWING_SET_SLIDE_HEIGHT = 6 * FOOT  # Height of slide
-SWING_SET_SLIDE_LENGTH = 8 * FOOT  # Length of slide
-SWING_SET_LADDER_HEIGHT = 5 * FOOT  # Height of ladder
-SWING_SET_LADDER_WIDTH = 2 * FOOT  # Width of ladder
-SWING_SET_OFFSET_Y = 15 * FOOT  # Distance south of pool's southern edge
-SWING_SET_COLOR_WOOD = (0.45, 0.27, 0.12)  # Pressure-treated wood color
-SWING_SET_COLOR_METAL = (0.15, 0.15, 0.15)  # Dark metal hardware color
