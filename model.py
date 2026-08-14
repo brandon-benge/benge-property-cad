@@ -133,7 +133,9 @@ def _capsule_solid(length: Length, width: Length, height: Length, origin: Point3
     body_length = length - width
     center = box(body_length, width, height, origin=(x + radius, y, z))
     left_cap = cylinder_between((x + radius, y + radius, z), (x + radius, y + radius, z + height), radius)
-    right_cap = cylinder_between((x + length - radius, y + radius, z), (x + length - radius, y + radius, z + height), radius)
+    right_cap = cylinder_between(
+        (x + length - radius, y + radius, z), (x + length - radius, y + radius, z + height), radius
+    )
     return center.fuse(left_cap, right_cap)
 
 
@@ -439,7 +441,11 @@ def build_model(context: BuildContext) -> DesignModel:
             if overlap_start <= center_y <= overlap_end:
                 return cut_x, cut_x + cut_length
 
-            sample_y = overlap_start if to_mm(abs(overlap_start - center_y)) <= to_mm(abs(overlap_end - center_y)) else overlap_end
+            sample_y = (
+                overlap_start
+                if to_mm(abs(overlap_start - center_y)) <= to_mm(abs(overlap_end - center_y))
+                else overlap_end
+            )
             radius_mm = to_mm(cut_width / 2)
             dy_mm = to_mm(abs(sample_y - center_y))
             if dy_mm >= radius_mm:
@@ -457,7 +463,9 @@ def build_model(context: BuildContext) -> DesignModel:
                     if board_y < cut_y1 and board_y + board_depth > cut_y0:
                         board_spans = subtract_spans(board_spans, cut_x0, cut_x1)
                 for cut_x, cut_y, cut_length, cut_width in deck_capsules:
-                    capsule_span = capsule_cutout_span(board_y, board_y + board_depth, cut_x, cut_y, cut_length, cut_width)
+                    capsule_span = capsule_cutout_span(
+                        board_y, board_y + board_depth, cut_x, cut_y, cut_length, cut_width
+                    )
                     if capsule_span is not None:
                         board_spans = subtract_spans(board_spans, capsule_span[0], capsule_span[1])
                 for segment_index, (span_start, span_end) in enumerate(board_spans, 1):
@@ -566,7 +574,9 @@ def build_model(context: BuildContext) -> DesignModel:
             # be one Solid, so emit each remnant as its own physical element
             # (matching add_deck_boards' _Left/_Right split above).
             pieces = sorted(pieces, key=lambda solid: bounds(solid)[0])
-            suffixes = ["_Left", "_Right"] if len(pieces) == 2 else [f"_{index:02d}" for index in range(1, len(pieces) + 1)]
+            suffixes = (
+                ["_Left", "_Right"] if len(pieces) == 2 else [f"_{index:02d}" for index in range(1, len(pieces) + 1)]
+            )
             for suffix, solid in zip(suffixes, pieces, strict=True):
                 piece_bounds = bounds(solid)
                 builder.add_shape(
@@ -1003,7 +1013,11 @@ def build_model(context: BuildContext) -> DesignModel:
         14 * INCH + CUT_MARGIN,
         cfg.FIREPLACE_OPENING_WIDTH + CUT_MARGIN,
         cfg.FIREPLACE_OPENING_HEIGHT + CUT_MARGIN,
-        origin=(cfg.FIREPLACE_WIDTH - 14 * INCH - CUT_MARGIN / 2, firebox_y - CUT_MARGIN / 2, firebox_z - CUT_MARGIN / 2),
+        origin=(
+            cfg.FIREPLACE_WIDTH - 14 * INCH - CUT_MARGIN / 2,
+            firebox_y - CUT_MARGIN / 2,
+            firebox_z - CUT_MARGIN / 2,
+        ),
     )
     builder.add_shape(
         "fireplace",
@@ -2000,7 +2014,11 @@ def build_model(context: BuildContext) -> DesignModel:
             pool_length - 2 * cfg.POOL_SHELL_THICKNESS,
             pool_width - 2 * cfg.POOL_SHELL_THICKNESS,
             cfg.POOL_DEEP_DEPTH - cfg.POOL_COPING_THICKNESS - cfg.POOL_SHELL_THICKNESS,
-            origin=(pool_x + cfg.POOL_SHELL_THICKNESS, pool_y + cfg.POOL_SHELL_THICKNESS, pool_z + cfg.POOL_SHELL_THICKNESS),
+            origin=(
+                pool_x + cfg.POOL_SHELL_THICKNESS,
+                pool_y + cfg.POOL_SHELL_THICKNESS,
+                pool_z + cfg.POOL_SHELL_THICKNESS,
+            ),
         ),
         cfg.WATER_COLOR,
         Dimensions(
@@ -2008,7 +2026,11 @@ def build_model(context: BuildContext) -> DesignModel:
             to_mm(pool_width - 2 * cfg.POOL_SHELL_THICKNESS),
             to_mm(cfg.POOL_DEEP_DEPTH - cfg.POOL_COPING_THICKNESS - cfg.POOL_SHELL_THICKNESS),
         ),
-        placement=(pool_x + cfg.POOL_SHELL_THICKNESS, pool_y + cfg.POOL_SHELL_THICKNESS, pool_z + cfg.POOL_SHELL_THICKNESS),
+        placement=(
+            pool_x + cfg.POOL_SHELL_THICKNESS,
+            pool_y + cfg.POOL_SHELL_THICKNESS,
+            pool_z + cfg.POOL_SHELL_THICKNESS,
+        ),
         drawing_label=True,
         stable_id="complex.pool.main_pool_water_sloped5ft_to8ft",
         parent_id=pool_shell_id,
@@ -2029,7 +2051,11 @@ def build_model(context: BuildContext) -> DesignModel:
             pool_length + 2 * pool_grass_overlap + CUT_MARGIN,
             pool_width + 2 * pool_grass_overlap + CUT_MARGIN,
             cfg.GRASS_THICKNESS + CUT_MARGIN,
-            origin=(pool_x - pool_grass_overlap - CUT_MARGIN / 2, pool_y - pool_grass_overlap - CUT_MARGIN / 2, -cfg.GRASS_THICKNESS - CUT_MARGIN / 2),
+            origin=(
+                pool_x - pool_grass_overlap - CUT_MARGIN / 2,
+                pool_y - pool_grass_overlap - CUT_MARGIN / 2,
+                -cfg.GRASS_THICKNESS - CUT_MARGIN / 2,
+            ),
         ).cut(
             _capsule_solid(
                 pool_length + CUT_MARGIN,
