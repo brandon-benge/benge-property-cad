@@ -567,7 +567,7 @@ def build_model(context: BuildContext) -> DesignModel:
             # (matching add_deck_boards' _Left/_Right split above).
             pieces = sorted(pieces, key=lambda solid: bounds(solid)[0])
             suffixes = ["_Left", "_Right"] if len(pieces) == 2 else [f"_{index:02d}" for index in range(1, len(pieces) + 1)]
-            for suffix, solid in zip(suffixes, pieces):
+            for suffix, solid in zip(suffixes, pieces, strict=True):
                 piece_bounds = bounds(solid)
                 builder.add_shape(
                     "deck-framing",
