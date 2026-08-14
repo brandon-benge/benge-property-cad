@@ -573,11 +573,11 @@ def build_model(context: BuildContext) -> DesignModel:
             # leaving disconnected remnants; a single element's geometry must
             # be one Solid, so emit each remnant as its own physical element
             # (matching add_deck_boards' _Left/_Right split above).
-            pieces = sorted(pieces, key=lambda solid: bounds(solid)[0])
+            ordered_pieces = sorted(pieces, key=lambda solid: bounds(solid)[0])
             suffixes = (
                 ["_Left", "_Right"] if len(pieces) == 2 else [f"_{index:02d}" for index in range(1, len(pieces) + 1)]
             )
-            for suffix, solid in zip(suffixes, pieces, strict=True):
+            for suffix, solid in zip(suffixes, ordered_pieces, strict=True):
                 piece_bounds = bounds(solid)
                 builder.add_shape(
                     "deck-framing",
@@ -892,9 +892,9 @@ def build_model(context: BuildContext) -> DesignModel:
     )
     stair_dx = to_mm(upper_stair_end[0] - upper_stair_start[0])
     stair_dy = to_mm(upper_stair_end[1] - upper_stair_start[1])
-    stair_run = math.hypot(stair_dx, stair_dy)
-    stair_px = -stair_dy / stair_run
-    stair_py = stair_dx / stair_run
+    stair_run_length = math.hypot(stair_dx, stair_dy)
+    stair_px = -stair_dy / stair_run_length
+    stair_py = stair_dx / stair_run_length
     stair_rail_offset = to_mm(cfg.STAIR_WIDTH) / 2
     upper_stair_left_top = (
         mm(to_mm(upper_stair_start[0]) - stair_px * stair_rail_offset),
@@ -1441,7 +1441,8 @@ def build_model(context: BuildContext) -> DesignModel:
         dy = to_mm(end[1] - start[1])
         run = math.hypot(dx, dy)
         baluster_count = max(1, math.ceil(run / to_mm(cfg.RAILING_BALUSTER_MAX_SPACING)) - 1)
-        for index in range(1, baluster_count + 1):
+        first_baluster_index = 2 if name == "StairSideRail" else 1
+        for index in range(first_baluster_index, baluster_count + 1):
             ratio = index / (baluster_count + 1)
             baluster_x = mm(to_mm(start[0]) + dx * ratio)
             baluster_y = mm(to_mm(start[1]) + dy * ratio)
@@ -1546,13 +1547,13 @@ def build_model(context: BuildContext) -> DesignModel:
                     cfg.DECK_COLOR,
                 )
 
-                # Riser positioned at the front of the tread (downslope direction)
-                riser_center_x = center_x - direction_x * riser_setback
-                riser_center_y = center_y - direction_y * riser_setback
-                riser_start_x = riser_center_x - direction_x * to_mm(cfg.TREAD_DEPTH) / 2
-                riser_start_y = riser_center_y - direction_y * to_mm(cfg.TREAD_DEPTH) / 2
-                riser_end_x = riser_center_x + direction_x * to_mm(cfg.TREAD_DEPTH) / 2
-                riser_end_y = riser_center_y + direction_y * to_mm(cfg.TREAD_DEPTH) / 2
+                # Riser is a thin board across the stair width, aligned beneath the tread.
+                riser_center_x = center_x
+                riser_center_y = center_y
+                riser_start_x = riser_center_x - px * skirt_offset
+                riser_start_y = riser_center_y - py * skirt_offset
+                riser_end_x = riser_center_x + px * skirt_offset
+                riser_end_y = riser_center_y + py * skirt_offset
 
                 builder.add_prism(
                     "stair",
@@ -1914,7 +1915,7 @@ def build_model(context: BuildContext) -> DesignModel:
                     properties={
                         "complex_type": "stair_riser_light",
                         "assembly_role": "low_voltage_step_lighting",
-                        "illuminates": f"complex.stair.{prefix.lower()}_riser_{index:02d}",
+                        "illuminates": f"complex.stair.{_slug(prefix)}_riser_{index:02d}",
                         "color_temperature_k": 2700,
                         "voltage_v": 12,
                         "aim": "downward",
@@ -2759,7 +2760,7 @@ def build_model(context: BuildContext) -> DesignModel:
         (cfg.UPPER_DECK_WIDTH, ZERO),
         cfg.UPPER_DECK_ELEVATION,
     )
-    # StairSideRail connects UpperPost_R to the upper stair at the corner.
+    # StairSideRail connects the upper stair to the upper deck corner.
     # The stair now runs diagonally from the far right corner.
     rail_segment(
         "StairSideRail",
@@ -2809,7 +2810,6 @@ def build_model(context: BuildContext) -> DesignModel:
     )
     for name, post_x, post_y, post_z in [
         ("UpperPost_L", ZERO, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),
-        ("UpperPost_R", cfg.UPPER_DECK_WIDTH - post_thickness, -cfg.UPPER_DECK_DEPTH, cfg.UPPER_DECK_ELEVATION),
         ("LowerPost_LH", lower_x, lower_back_rail_y, cfg.LOWER_DECK_ELEVATION),
         ("LowerPost_RH", lower_x + cfg.LOWER_DECK_WIDTH, lower_back_rail_y, cfg.LOWER_DECK_ELEVATION),
         ("LowerPost_RF", lower_x + cfg.LOWER_DECK_WIDTH, -cfg.LOWER_DECK_DEPTH, cfg.LOWER_DECK_ELEVATION),
