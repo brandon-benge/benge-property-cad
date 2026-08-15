@@ -76,7 +76,10 @@ def _ifc_entities_by_stable_id(elements) -> dict[str, Any]:
     for entity in elements:
         for rel_def in entity.IsDefinedBy:
             if rel_def.is_a("IfcRelDefinesByProperties"):
-                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
+                definition = rel_def.RelatingPropertyDefinition
+                if not definition.is_a("IfcPropertySet"):
+                    continue
+                for prop in definition.HasProperties:
                     if prop.Name == "StableId":
                         entities_by_id[str(prop.NominalValue.wrappedValue)] = entity
     return entities_by_id
@@ -87,7 +90,10 @@ def _ifc_stable_ids(elements) -> set[str]:
     for entity in elements:
         for rel_def in entity.IsDefinedBy:
             if rel_def.is_a("IfcRelDefinesByProperties"):
-                for prop in rel_def.RelatingPropertyDefinition.HasProperties:
+                definition = rel_def.RelatingPropertyDefinition
+                if not definition.is_a("IfcPropertySet"):
+                    continue
+                for prop in definition.HasProperties:
                     if prop.Name == "StableId":
                         ids.add(str(prop.NominalValue.wrappedValue))
     return ids
