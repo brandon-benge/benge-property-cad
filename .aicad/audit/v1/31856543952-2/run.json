@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "run_id": "31856543952-2",
+  "source": "github-actions",
+  "github": {
+    "event_name": "issues",
+    "repository": "brandon-benge/benge-property-cad",
+    "repository_id": "1299638363",
+    "workflow": "opencode",
+    "run_id": "31856543952",
+    "run_attempt": "2",
+    "actor": "brandon-benge",
+    "ref": "refs/heads/main",
+    "trigger_sha": "0cc920308fbbced9747bba2af24f37845202e66f",
+    "issue": {
+      "number": 18,
+      "title": "Add east-yard swing set",
+      "body": "## Request\n\nAdd a residential swing set on the east side of the yard. Position the nearest edge of the swing set fifteen feet south of the pool’s southern edge. Orient it east–west and include a raised play platform, two belt swings, a slide, ladder, and four structural support posts. Use pressure-treated wood with dark metal hardware. Update the 3D model, element metadata, quantities, drawings, and exported files. Preserve all existing property features.\n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=318E7DDB-7B51-4EFD-92DC-49C8E0EB0051 sha256=8d818536d8e8e3fcea3103e77facf16fac8840b23e6cc7cb7556d5fbbb3853e9 -->"
+    },
+    "comment": null
+  },
+  "opencode": {
+    "version": "1.18.18",
+    "model": "openai/gpt-5.4-mini",
+    "agent": "file-design-maintainer",
+    "exit_code": 0,
+    "provider_id": "openai",
+    "model_id": "gpt-5.4-mini",
+    "credential_presence": {
+      "OPENCODE_API_KEY_PRESENT": true,
+      "OPENAI_API_KEY_PRESENT": true,
+      "ANTHROPIC_API_KEY_PRESENT": true,
+      "GOOGLE_API_KEY_PRESENT": false,
+      "OPENROUTER_API_KEY_PRESENT": false,
+      "GROQ_API_KEY_PRESENT": false,
+      "XAI_API_KEY_PRESENT": false,
+      "DEEPINFRA_API_KEY_PRESENT": false,
+      "MISTRAL_API_KEY_PRESENT": false
+    }
+  },
+  "started_at": "2026-08-15T01:30:38Z",
+  "completed_at": "2026-08-15T02:12:19Z",
+  "status": "completed",
+  "failure_stage": null,
+  "starting_revision": "0cc920308fbbced9747bba2af24f37845202e66f",
+  "candidate_changed_paths": [
+    "config.py",
+    "model.py"
+  ],
+  "validation": [
+    {
+      "command": "python-cad validate --project-root .",
+      "exit_code": 0
+    }
+  ],
+  "events": {
+    "original_bytes": 512723,
+    "retained_bytes": 512723,
+    "truncated": false,
+    "sha256": "3dae493336db53aed6765c7561ccd58e3b4a6d7390d8fba922a999daa295d93b"
+  }
+}

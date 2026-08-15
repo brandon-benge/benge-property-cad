@@ -92,6 +92,31 @@ SHED_SIDE_DOOR_HEIGHT = 6.5 * FOOT
 # at X=55ft, and the solid white privacy fence stands on that same line.
 POOL_SOUTH_GRASS_MAX_X = 55 * FOOT
 
+# East-yard swing set: the nearest edge sits 15ft south of the pool's south
+# edge and the overall footprint keeps 1ft of clearance from the property-line
+# fence.
+SWING_SET_LENGTH = 14 * FOOT
+SWING_SET_DEPTH = 9 * FOOT
+SWING_SET_PLATFORM_LENGTH = 6 * FOOT
+SWING_SET_PLATFORM_DEPTH = 5 * FOOT
+SWING_SET_PLATFORM_THICKNESS = 4 * INCH
+SWING_SET_PLATFORM_HEIGHT = 5 * FOOT
+SWING_SET_POST_SIZE = 6 * INCH
+SWING_SET_POST_HEIGHT = 9 * FOOT
+SWING_SET_BEAM_HEIGHT = 8 * FOOT
+SWING_SET_NEAR_EDGE_OFFSET = 15 * FOOT
+SWING_SET_EAST_CLEARANCE = 1 * FOOT
+SWING_SET_LADDER_WIDTH = 2 * FOOT
+SWING_SET_LADDER_LENGTH = 5 * FOOT
+SWING_SET_SLIDE_WIDTH = 2 * FOOT
+SWING_SET_SLIDE_LENGTH = 7 * FOOT
+SWING_SET_SWING_SEAT_WIDTH = 18 * INCH
+SWING_SET_SWING_SEAT_DEPTH = 8 * INCH
+SWING_SET_SWING_SEAT_THICKNESS = 1.25 * INCH
+SWING_SET_SWING_CHAIN_DIAMETER = 0.5 * INCH
+SWING_SET_SWING_SEAT_SPACING = 3 * FOOT
+SWING_SET_HARDWARE_COLOR = (0.12, 0.12, 0.14)
+
 # Evergreen tree line on the positive-X side of the yard.  Tree centers start
 # at y=0 and continue toward negative Y at an exact 4ft pitch; the final center
 # is the last pitch point that remains within the -14yd limit.

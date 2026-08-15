@@ -212,6 +212,8 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     # Railing
     ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
     # Site
+    ("site", cfg.SKIRTING_COLOR): ("Pressure-Treated Wood", 500.0),
+    ("site", cfg.SWING_SET_HARDWARE_COLOR): ("Dark Metal Hardware", 7850.0),
     ("site", cfg.PAVER_COLOR): ("Concrete Pavers", 2400.0),
     ("site", cfg.TILE_COLOR): ("Pool Tile", 2300.0),
     ("site", cfg.GRASS_COLOR): ("Turf Grass", 50.0),
@@ -2873,6 +2875,224 @@ def build_model(context: BuildContext) -> DesignModel:
 
         plant_x -= cfg.SKIP_LAUREL_SPACING
         plant_index += 1
+
+    # East-yard swing set on the positive-X side of the grass yard.
+    # The nearest edge of the structure sits 15ft south of the pool's south edge.
+    swing_set_x = cfg.PROPERTY_LINE_FENCE_X - cfg.SWING_SET_LENGTH - cfg.SWING_SET_EAST_CLEARANCE
+    swing_set_north_y = pool_y - cfg.SWING_SET_NEAR_EDGE_OFFSET
+    swing_set_south_y = swing_set_north_y - cfg.SWING_SET_DEPTH
+    swing_set_platform_y = swing_set_north_y - cfg.SWING_SET_PLATFORM_DEPTH
+    swing_set_id = "complex.site.east_yard_swing_set"
+    builder.add_box(
+        "site",
+        "East Yard Swing Set",
+        cfg.SWING_SET_PLATFORM_LENGTH,
+        cfg.SWING_SET_PLATFORM_DEPTH,
+        cfg.SWING_SET_PLATFORM_THICKNESS,
+        swing_set_x,
+        swing_set_platform_y,
+        cfg.SWING_SET_PLATFORM_HEIGHT,
+        cfg.SKIRTING_COLOR,
+        drawing_label=True,
+        stable_id=swing_set_id,
+        properties={
+            "label": "East Yard Swing Set",
+            "complex_type": "raised_play_platform",
+            "assembly_role": "playground_structure",
+            "finish": "pressure_treated_wood",
+            "hardware_finish": "dark_metal",
+            "orientation": "east_west",
+            "components": "raised_platform, two_belt_swings, slide, ladder, four_support_posts",
+            "adjacent_to": "complex.site.unified_yard_grass",
+            "clearance_from_pool_south_edge_mm": to_mm(cfg.SWING_SET_NEAR_EDGE_OFFSET),
+        },
+    )
+
+    post_positions = (
+        (swing_set_x, swing_set_south_y),
+        (swing_set_x, swing_set_north_y - cfg.SWING_SET_POST_SIZE),
+        (swing_set_x + cfg.SWING_SET_LENGTH - cfg.SWING_SET_POST_SIZE, swing_set_south_y),
+        (
+            swing_set_x + cfg.SWING_SET_LENGTH - cfg.SWING_SET_POST_SIZE,
+            swing_set_north_y - cfg.SWING_SET_POST_SIZE,
+        ),
+    )
+    for index, (post_x, post_y) in enumerate(post_positions, 1):
+        builder.add_box(
+            "site",
+            f"EastYardSwingSetSupportPost_{index:02d}",
+            cfg.SWING_SET_POST_SIZE,
+            cfg.SWING_SET_POST_SIZE,
+            cfg.SWING_SET_POST_HEIGHT,
+            post_x,
+            post_y,
+            ZERO,
+            cfg.SKIRTING_COLOR,
+            parent_id=swing_set_id,
+            properties={
+                "complex_type": "playground_support_post",
+                "assembly_role": "support_post",
+                "material": "pressure_treated_wood",
+                "post_index": index,
+            },
+        )
+
+    builder.add_box(
+        "site",
+        "EastYardSwingSetTopBeam",
+        cfg.SWING_SET_LENGTH,
+        cfg.SWING_SET_POST_SIZE,
+        cfg.SWING_SET_POST_SIZE,
+        swing_set_x,
+        swing_set_north_y - cfg.SWING_SET_POST_SIZE,
+        cfg.SWING_SET_BEAM_HEIGHT,
+        cfg.SKIRTING_COLOR,
+        parent_id=swing_set_id,
+        properties={
+            "complex_type": "playground_support_beam",
+            "assembly_role": "overhead_beam",
+            "material": "pressure_treated_wood",
+            "orientation": "east_west",
+        },
+    )
+
+    ladder_bottom_y = swing_set_south_y + 1 * FOOT
+    ladder_top_y = swing_set_platform_y + cfg.SWING_SET_PLATFORM_DEPTH - 6 * INCH
+    ladder_left_x = swing_set_x + 9 * INCH
+    ladder_right_x = ladder_left_x + cfg.SWING_SET_LADDER_WIDTH - 9 * INCH
+    ladder_rail_paths = (
+        (
+            ladder_left_x,
+            ladder_bottom_y,
+            ZERO,
+            ladder_left_x + 3 * INCH,
+            ladder_top_y,
+            cfg.SWING_SET_PLATFORM_HEIGHT,
+        ),
+        (
+            ladder_right_x,
+            ladder_bottom_y,
+            ZERO,
+            ladder_right_x + 3 * INCH,
+            ladder_top_y,
+            cfg.SWING_SET_PLATFORM_HEIGHT,
+        ),
+    )
+    for index, (x0, y0, z0, x1, y1, z1) in enumerate(ladder_rail_paths, 1):
+        builder.add_shape(
+            "site",
+            f"EastYardSwingSetLadderRail_{index:02d}",
+            prism_between((x0, y0, z0), (x1, y1, z1), 3 * INCH, 3 * INCH),
+            cfg.SWING_SET_HARDWARE_COLOR,
+            Dimensions(
+                math.dist((to_mm(x0), to_mm(y0), to_mm(z0)), (to_mm(x1), to_mm(y1), to_mm(z1))),
+                to_mm(3 * INCH),
+                to_mm(3 * INCH),
+            ),
+            placement=(x0, y0, z0),
+            parent_id=swing_set_id,
+            properties={
+                "complex_type": "playground_ladder",
+                "assembly_role": "ladder_rail",
+                "material": "pressure_treated_wood",
+            },
+        )
+    for index, rung_z in enumerate((18 * INCH, 30 * INCH, 42 * INCH), 1):
+        rung_ratio = to_mm(rung_z) / to_mm(cfg.SWING_SET_PLATFORM_HEIGHT)
+        rung_y = ladder_bottom_y + rung_ratio * (ladder_top_y - ladder_bottom_y)
+        builder.add_cylinder(
+            "site",
+            f"EastYardSwingSetLadderRung_{index:02d}",
+            (ladder_left_x + 3 * INCH, rung_y, rung_z),
+            (ladder_right_x + 3 * INCH, rung_y, rung_z),
+            0.75 * INCH,
+            cfg.SWING_SET_HARDWARE_COLOR,
+            parent_id=swing_set_id,
+            properties={
+                "complex_type": "playground_ladder",
+                "assembly_role": "ladder_rung",
+                "material": "dark_metal",
+            },
+        )
+
+    slide_start = (
+        swing_set_x + cfg.SWING_SET_PLATFORM_LENGTH - cfg.SWING_SET_SLIDE_WIDTH / 2,
+        swing_set_platform_y,
+        cfg.SWING_SET_PLATFORM_HEIGHT,
+    )
+    slide_end = (
+        swing_set_x + cfg.SWING_SET_PLATFORM_LENGTH + 5 * FOOT,
+        swing_set_south_y + 1 * FOOT,
+        ZERO,
+    )
+    builder.add_shape(
+        "site",
+        "EastYardSwingSetSlide",
+        prism_between(slide_start, slide_end, cfg.SWING_SET_SLIDE_WIDTH, 3 * INCH),
+        cfg.SWING_SET_HARDWARE_COLOR,
+        Dimensions(
+            math.dist(tuple(to_mm(value) for value in slide_start), tuple(to_mm(value) for value in slide_end)),
+            to_mm(cfg.SWING_SET_SLIDE_WIDTH),
+            to_mm(3 * INCH),
+        ),
+        placement=slide_start,
+        parent_id=swing_set_id,
+        properties={
+            "complex_type": "playground_slide",
+            "assembly_role": "slide",
+            "material": "dark_metal",
+            "orientation": "south_east",
+        },
+    )
+
+    swing_centers = (
+        swing_set_x + 8 * FOOT,
+        swing_set_x + 11 * FOOT,
+    )
+    seat_y = swing_set_north_y - 4 * FOOT
+    seat_z = 4 * FOOT - cfg.SWING_SET_SWING_SEAT_THICKNESS
+    for swing_index, center_x in enumerate(swing_centers, 1):
+        seat_x = center_x - cfg.SWING_SET_SWING_SEAT_WIDTH / 2
+        builder.add_box(
+            "site",
+            f"EastYardSwingSetBeltSwing_{swing_index:02d}Seat",
+            cfg.SWING_SET_SWING_SEAT_WIDTH,
+            cfg.SWING_SET_SWING_SEAT_DEPTH,
+            cfg.SWING_SET_SWING_SEAT_THICKNESS,
+            seat_x,
+            seat_y,
+            seat_z,
+            cfg.SWING_SET_HARDWARE_COLOR,
+            parent_id=swing_set_id,
+            properties={
+                "complex_type": "belt_swing",
+                "assembly_role": "swing_seat",
+                "material": "dark_metal",
+                "swing_index": swing_index,
+            },
+        )
+        for chain_index, x_offset in enumerate((-6 * INCH, 6 * INCH), 1):
+            chain_x = center_x + x_offset
+            chain_y = swing_set_north_y - cfg.SWING_SET_POST_SIZE / 2
+            builder.add_cylinder(
+                "site",
+                f"EastYardSwingSetBeltSwing_{swing_index:02d}Chain_{chain_index:02d}",
+                (chain_x, chain_y, cfg.SWING_SET_BEAM_HEIGHT),
+                (
+                    chain_x,
+                    seat_y + cfg.SWING_SET_SWING_SEAT_DEPTH / 2 + 1 * INCH,
+                    seat_z + cfg.SWING_SET_SWING_SEAT_THICKNESS,
+                ),
+                cfg.SWING_SET_SWING_CHAIN_DIAMETER / 2,
+                cfg.SWING_SET_HARDWARE_COLOR,
+                parent_id=swing_set_id,
+                properties={
+                    "complex_type": "belt_swing_chain",
+                    "assembly_role": "swing_chain",
+                    "material": "dark_metal",
+                    "swing_index": swing_index,
+                },
+            )
 
     # Pool removed per design request
 
