@@ -1641,7 +1641,8 @@ def build_model(context: BuildContext) -> DesignModel:
         direction_x = dx / run
         direction_y = dy / run
         riser_thickness = 1.25 * INCH
-        riser_setback = (to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)) / 2
+        riser_center_setback = (to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)) / 2
+        diagonal_riser_backset = to_mm(cfg.TREAD_DEPTH) - to_mm(riser_thickness)
         stair_skirt_width = 2 * INCH
         stair_skirt_clearance = 0.125 * INCH
         rail_offset = to_mm(width) / 2
@@ -1677,13 +1678,15 @@ def build_model(context: BuildContext) -> DesignModel:
                     cfg.DECK_COLOR,
                 )
 
-                # Riser is a thin board across the stair width, aligned beneath the tread.
-                riser_center_x = center_x
-                riser_center_y = center_y
+                # prism_between extends its width behind the supplied cross-stair
+                # line, so offset that line by the full clear tread depth.
+                riser_center_x = center_x - direction_x * diagonal_riser_backset
+                riser_center_y = center_y - direction_y * diagonal_riser_backset
                 riser_start_x = riser_center_x - px * skirt_offset
                 riser_start_y = riser_center_y - py * skirt_offset
                 riser_end_x = riser_center_x + px * skirt_offset
                 riser_end_y = riser_center_y + py * skirt_offset
+                tread_id = f"complex.stair.{_slug(prefix)}_tread_{index:02d}"
 
                 builder.add_prism(
                     "stair",
@@ -1693,6 +1696,13 @@ def build_model(context: BuildContext) -> DesignModel:
                     riser_thickness,
                     mm(abs(rise)),
                     cfg.SKIRTING_COLOR,
+                    parent_id=tread_id,
+                    properties={
+                        "complex_type": "stair_riser",
+                        "assembly_role": "vertical_step_closure",
+                        "associated_tread_id": tread_id,
+                        "position": "back_of_tread",
+                    },
                 )
         else:
             # For axis-aligned stairs, use the original box-based approach
@@ -1715,10 +1725,11 @@ def build_model(context: BuildContext) -> DesignModel:
                     cfg.DECK_COLOR,
                 )
 
-                riser_center_x = center_x - direction_x * riser_setback
-                riser_center_y = center_y - direction_y * riser_setback
+                riser_center_x = center_x - direction_x * riser_center_setback
+                riser_center_y = center_y - direction_y * riser_center_setback
                 riser_x_dim = tread_length if axis == "y" else riser_thickness
                 riser_y_dim = riser_thickness if axis == "y" else tread_depth
+                tread_id = f"complex.stair.{_slug(prefix)}_tread_{index:02d}"
                 builder.add_box(
                     "stair",
                     f"{prefix}Riser_{index:02d}",
@@ -1729,6 +1740,13 @@ def build_model(context: BuildContext) -> DesignModel:
                     mm(riser_center_y - to_mm(riser_y_dim) / 2),
                     mm(min(tread_z, tread_z + rise)),
                     cfg.SKIRTING_COLOR,
+                    parent_id=tread_id,
+                    properties={
+                        "complex_type": "stair_riser",
+                        "assembly_role": "vertical_step_closure",
+                        "associated_tread_id": tread_id,
+                        "position": "back_of_tread",
+                    },
                 )
 
         for side_name, side_sign in (("Left", -1), ("Right", 1)):
