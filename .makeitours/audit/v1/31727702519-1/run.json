@@ -15,7 +15,7 @@
     "issue": {
       "number": 14,
       "title": "Need to fix stairs",
-      "body": "## Request\n\nCurrently the UpperStraightTread rails are 100% correct, do not change them. However, the steps do not align with the 45 degree turn so that they match the rails as they go down. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=88630912-0514-4251-87AD-94A071FDC0BA sha256=169210e62513d351374703dfbce9a022648cc57b3da163b88cdf8d419fe1aabd -->"
+      "body": "## Request\n\nCurrently the UpperStraightTread rails are 100% correct, do not change them. However, the steps do not align with the 45 degree turn so that they match the rails as they go down. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- makeitours-request:v1 id=88630912-0514-4251-87AD-94A071FDC0BA sha256=169210e62513d351374703dfbce9a022648cc57b3da163b88cdf8d419fe1aabd -->"
     },
     "comment": null
   },

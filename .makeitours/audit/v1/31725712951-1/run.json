@@ -15,7 +15,7 @@
     "issue": {
       "number": 13,
       "title": "Fix grass and trees",
-      "body": "## Request\n\nFix the grass so that it does not have a boxed whole in it. Also, remove the trees that pass through the deck. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=E946D9E9-91D1-427B-8DBB-BB4E4C60C7BD sha256=429fe7513f1e04c6f0cb04ad9fb544813d5ab8b5097c70b4cea8c7fd5d3c4405 -->"
+      "body": "## Request\n\nFix the grass so that it does not have a boxed whole in it. Also, remove the trees that pass through the deck. \n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- makeitours-request:v1 id=E946D9E9-91D1-427B-8DBB-BB4E4C60C7BD sha256=429fe7513f1e04c6f0cb04ad9fb544813d5ab8b5097c70b4cea8c7fd5d3c4405 -->"
     },
     "comment": null
   },

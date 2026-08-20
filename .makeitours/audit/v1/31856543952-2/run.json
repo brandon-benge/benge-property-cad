@@ -15,7 +15,7 @@
     "issue": {
       "number": 18,
       "title": "Add east-yard swing set",
-      "body": "## Request\n\nAdd a residential swing set on the east side of the yard. Position the nearest edge of the swing set fifteen feet south of the pool’s southern edge. Orient it east–west and include a raised play platform, two belt swings, a slide, ladder, and four structural support posts. Use pressure-treated wood with dark metal hardware. Update the 3D model, element metadata, quantities, drawings, and exported files. Preserve all existing property features.\n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- ai-cad-request:v1 id=318E7DDB-7B51-4EFD-92DC-49C8E0EB0051 sha256=8d818536d8e8e3fcea3103e77facf16fac8840b23e6cc7cb7556d5fbbb3853e9 -->"
+      "body": "## Request\n\nAdd a residential swing set on the east side of the yard. Position the nearest edge of the swing set fifteen feet south of the pool’s southern edge. Orient it east–west and include a raised play platform, two belt swings, a slide, ladder, and four structural support posts. Use pressure-treated wood with dark metal hardware. Update the 3D model, element metadata, quantities, drawings, and exported files. Preserve all existing property features.\n\n## Acceptance criteria\n\n- Complete the requested change and verify the project builds.\n\n<!-- makeitours-request:v1 id=318E7DDB-7B51-4EFD-92DC-49C8E0EB0051 sha256=8d818536d8e8e3fcea3103e77facf16fac8840b23e6cc7cb7556d5fbbb3853e9 -->"
     },
     "comment": null
   },
