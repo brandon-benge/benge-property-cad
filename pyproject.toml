@@ -32,7 +32,30 @@ schema-version = 1
 config = "config"
 model = "model:build_model"
 drawing-annotations = "drawing_annotations:build_annotations"
-source-inputs = ["config.py", "drawing_annotations.py", "model.py", "pyproject.toml"]
+source-inputs = [
+  "config.py",
+  "drawing_annotations.py",
+  "model.py",
+  "models/__init__.py",
+  "models/shared.py",
+  "models/builder.py",
+  "models/geometry.py",
+  "models/decks.py",
+  "models/features.py",
+  "models/roof.py",
+  "models/property_model.py",
+  "models/pool.py",
+  "models/play_structure.py",
+  "models/play_accessories.py",
+  "models/shed.py",
+  "models/landscape.py",
+  "models/site_access.py",
+  "models/site_surfaces.py",
+  "models/spa.py",
+  "models/stairs.py",
+  "models/lighting.py",
+  "pyproject.toml",
+]
 output-directory = "generated"
 default-formats = ["step", "ifc", "glb", "drawings", "quantities"]
 
@@ -49,7 +72,7 @@ markers = [
 
 [tool.mypy]
 python_version = "3.12"
-files = ["config.py", "model.py", "drawing_annotations.py", "tests/"]
+files = ["config.py", "model.py", "models/", "drawing_annotations.py", "tests/"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
