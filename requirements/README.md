@@ -16,5 +16,16 @@ generations that have diverged:
   to `locks/` (e.g. an older pinned `python-cad-tools`). Read `locks/` for the
   real, current pins.
 
+**`locks/dev-ubuntu-x86_64-py312.lock` is also the MakeItOurs release lock.**
+The hosted pipeline's Build Agent runs its `reproducibility` check against
+exactly this file and fails a release unless every pin equals the version
+installed in the released `makeitours-agentic` sandbox image. It was
+regenerated on 2026-09-26 from the `v0.1.22` image's x86_64 toolchain
+(`python-cad-tools` 0.1.16), using the same procedure as `file-template-cad`'s
+`requirements/README.md`: the image's versions as starting pins, then
+`pip-compile --extra=dev --generate-hashes` in a `python:3.12-slim-bookworm`
+linux/amd64 container with `pip<26.2`. Regenerate it whenever the image's
+toolchain changes.
+
 If this directory — or the loose top-level files, or `locks/` — is removed or
 reorganized, this description no longer applies to whatever replaced it.
