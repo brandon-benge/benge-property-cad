@@ -1,4 +1,4 @@
-name: Package and release Benge Property CAD
+name: Package and release File Template CAD
 
 on:
   push:
@@ -30,19 +30,19 @@ jobs:
           echo "version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "tag=v${release_version}" >> "$GITHUB_OUTPUT"
 
-      - name: Create deterministic project archive
+      - name: Create deterministic template archive
         run: |
-          git archive --format=tar --prefix=benge-property-cad/ HEAD \
-            | gzip -n > benge-property-cad.tar.gz
-          sha256sum benge-property-cad.tar.gz > benge-property-cad.tar.gz.sha256
+          git archive --format=tar --prefix=file-template-cad/ HEAD \
+            | gzip -n > file-template-cad.tar.gz
+          sha256sum file-template-cad.tar.gz > file-template-cad.tar.gz.sha256
 
       - name: Upload package for this workflow run
         uses: actions/upload-artifact@v4
         with:
-          name: benge-property-cad-${{ steps.version.outputs.version }}
+          name: file-template-cad-${{ steps.version.outputs.version }}
           path: |
-            benge-property-cad.tar.gz
-            benge-property-cad.tar.gz.sha256
+            file-template-cad.tar.gz
+            file-template-cad.tar.gz.sha256
           if-no-files-found: error
 
       - name: Create and push version tag
@@ -61,8 +61,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ steps.version.outputs.tag }}" \
-            benge-property-cad.tar.gz \
-            benge-property-cad.tar.gz.sha256 \
+            file-template-cad.tar.gz \
+            file-template-cad.tar.gz.sha256 \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --generate-notes
+

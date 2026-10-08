@@ -3,10 +3,16 @@
 Infrastructure (per `tools/reconcile-infrastructure`'s own definition: everything
 except `config.py`, `model.py`, `drawing_annotations.py`, `models/**/*.py`, and
 `generated/`) — kept in sync with this repository's sister projects rather than
-authored per-project. Verified by hand on every change here; only
-`test_git_opencode_audit.py`'s byte-identity is enforced automatically, by
-`test_workflow_policy.py::test_sister_repository_contract_parity`.
+authored per-project. Verified by hand on every change here; only the shared ticket-workflow
+contract files' byte-identity is enforced automatically, by
+`test_workflow_policy.py::test_sister_repository_contract_parity`. The ticket
+runner's own transaction tests live with it, in makeitours-agentic
+(`containers/runner/tests/`).
 
+- **`test_reconcile_source_inputs.py`** — `tools/reconcile-infrastructure` keeps
+  each project's `[tool.python-cad] source-inputs` (its own design files, in its
+  own order) while taking the rest of `pyproject.toml` from the template, and
+  never touches design files.
 - **`conftest.py`** — shared fixtures: `repo_root`, project-copying helpers for
   isolated build fixtures, and `identity` (the project's own model id, artifact
   stem, and annotation provider id, read from a real build rather than typed
@@ -16,10 +22,6 @@ authored per-project. Verified by hand on every change here; only
   `integration`-marked tier: full and partial builds, CLI behavior,
   cross-build determinism, and per-format output. Run with
   `pytest -q -m integration`.
-- **`test_git_opencode_audit.py`** — focused transaction tests for
-  `tools/run-git-opencode-audit`, using its own throwaway checkouts/remotes.
-  Passes unmodified in a project seeded from this template, since it never
-  reads this repository's own `.github/`.
 - **`test_viewer_e2e.py`** — packaged viewer/site and Playwright Chromium
   tests (`e2e`, `viewer` markers); needs Node/Playwright and is not run by
   default.
