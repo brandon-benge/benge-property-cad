@@ -245,7 +245,6 @@ def build_model(context: BuildContext) -> DesignModel:
         builder,
         upper_stair_left_top,
         upper_stair_right_top,
-        upper_stair_start,
         lower_x,
         lower_stair_width,
         pool_x,

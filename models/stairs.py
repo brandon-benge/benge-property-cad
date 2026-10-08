@@ -36,8 +36,7 @@ def rail_segment(builder: Any, name: str, start: Point2, end: Point2, z: Length,
     dy = to_mm(end[1] - start[1])
     run = math.hypot(dx, dy)
     baluster_count = max(1, math.ceil(run / to_mm(cfg_module.RAILING_BALUSTER_MAX_SPACING)) - 1)
-    first_baluster_index = 2 if name == "StairSideRail" else 1
-    for index in range(first_baluster_index, baluster_count + 1):
+    for index in range(1, baluster_count + 1):
         ratio = index / (baluster_count + 1)
         baluster_x = mm(to_mm(start[0]) + dx * ratio)
         baluster_y = mm(to_mm(start[1]) + dy * ratio)
@@ -265,7 +264,6 @@ def add_final_rails(
     builder: Any,
     upper_left_top: Point2,
     upper_right_top: Point2,
-    upper_stair_start: Point2,
     lower_x: Length,
     lower_stair_width: Length,
     pool_left_edge_x: Length,
@@ -275,21 +273,12 @@ def add_final_rails(
     upper_depth = cfg_module.UPPER_DECK_DEPTH
     upper_elevation = cfg_module.UPPER_DECK_ELEVATION
     lower_elevation = cfg_module.LOWER_DECK_ELEVATION
-    post_thickness = cfg_module.RAILING_POST_SIZE
     rail_segment(builder, "UpperFrontRail", (ZERO, -upper_depth), upper_left_top, upper_elevation, cfg_module)
     rail_segment(
         builder,
         "UpperStraightHouseRail",
         upper_right_top,
         (cfg_module.UPPER_DECK_WIDTH, ZERO),
-        upper_elevation,
-        cfg_module,
-    )
-    rail_segment(
-        builder,
-        "StairSideRail",
-        (cfg_module.UPPER_DECK_WIDTH - post_thickness, -upper_depth),
-        upper_stair_start,
         upper_elevation,
         cfg_module,
     )
