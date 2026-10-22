@@ -4,7 +4,9 @@ These tests run locally without contacting GitHub, installing dependencies,
 or building the project.
 """
 
+import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -85,6 +87,7 @@ def test_makeitours_workflow_sources_model_and_keys_from_the_app_settings():
     workflow = MAKEITOURS_WORKFLOW.read_text()
     assert "glm-5.2" not in workflow
     assert "MAKEITOURS_OPENCODE_MODEL: ${{ vars.MAKEITOURS_OPENCODE_MODEL }}" in workflow
+    assert "MAKEITOURS_AGENT_MODELS: ${{ vars.MAKEITOURS_AGENT_MODELS }}" in workflow
     for name in [
         "OPENCODE_API_KEY",
         "OPENAI_API_KEY",
@@ -114,7 +117,13 @@ def test_opencode_ticket_runner_is_retired():
 
 
 def test_sister_repository_contract_parity():
-    """The shared Git-triggered request contract files stay byte-identical."""
+    """A project's shared Git-triggered request contract files are byte-identical
+    to the template commit it records (`.makeitours/template-release.json`).
+
+    The project upgrades on its own schedule, so it is compared with the release
+    it came from, not with the template's latest commit (test-cost-reduction,
+    2026-10-12).
+    """
     sibling_names = [name for name in ["benge-property-cad", "file-template-cad"] if name != PROJECT_ROOT.name]
     sibling = next(
         (
@@ -126,6 +135,11 @@ def test_sister_repository_contract_parity():
     )
     if sibling is None:
         pytest.skip("sister repository with the makeitours workflow is not present in this workspace")
+    record = ".makeitours/template-release.json"
+    project, template = (PROJECT_ROOT, sibling) if (PROJECT_ROOT / record).is_file() else (sibling, PROJECT_ROOT)
+    if not (project / record).is_file():
+        pytest.skip("neither checkout records the template release it came from")
+    commit = json.loads((project / record).read_text())["commit"]
     shared = [
         ".github/workflows/makeitours.yml",
         "tools/reconcile-infrastructure",
@@ -133,8 +147,13 @@ def test_sister_repository_contract_parity():
         ".makeitours/schema/git-opencode-run-v1.schema.json",
     ]
     for relative in shared:
-        assert (PROJECT_ROOT / relative).read_bytes() == (sibling / relative).read_bytes(), (
-            f"shared contract file diverged: {relative}"
+        released = subprocess.run(
+            ["git", "-C", str(template), "show", f"{commit}:{relative}"], capture_output=True, check=False
+        )
+        if released.returncode != 0:
+            pytest.skip(f"the template checkout does not have {commit[:12]}:{relative} (fetch the template)")
+        assert (project / relative).read_bytes() == released.stdout, (
+            f"shared contract file diverged from template {commit[:12]}: {relative}"
         )
 
 
@@ -142,8 +161,7 @@ def test_ci_yml_required_jobs():
     text = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
     required = [
         "locked-install",
-        "static-analysis",
-        "boundary-governance",
+        "checks",
         "compatibility-report",
         "required-gate",
     ]
