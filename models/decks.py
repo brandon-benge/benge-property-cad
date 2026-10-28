@@ -174,13 +174,14 @@ def add_decks(builder: Any, cfg: Any) -> None:
                 shape = shape.cut(cutout)
             pieces = shape.solids()
             if len(pieces) <= 1:
+                shape_bounds = bounds(shape)
                 builder.add_shape(
                     "deck-framing",
                     name,
                     shape,
                     color,
                     Dimensions(to_mm(length), to_mm(depth), to_mm(height)),
-                    placement=(x, y, z),
+                    placement=(shape_bounds[0] * MM, shape_bounds[1] * MM, shape_bounds[2] * MM),
                     drawing_label=drawing_label,
                     properties=properties,
                     physical=physical,

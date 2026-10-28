@@ -8,6 +8,7 @@ from typing import Any
 
 from build123d import Plane, Polyline, extrude, make_face
 from python_cad_tools.elements import Dimensions
+from python_cad_tools.geometry import bounds
 from python_cad_tools.units import INCH, Length, mm, to_mm
 
 from models.shared import CUT_MARGIN, ZERO, Point2
@@ -215,13 +216,14 @@ def add_roof(builder: Any, cfg: Any) -> RoofPhaseResult:
             close=True,
         )
         shape = extrude(make_face(profile), amount=to_mm(INCH)).solid().translate((0.0, 0.0, to_mm(fan_z)))
+        shape_bounds = bounds(shape)
         builder.add_shape(
             "feature",
             name,
             shape,
             cfg.SKIRTING_COLOR,
             Dimensions(to_mm(blade), to_mm(cfg.FAN_BLADE_WIDTH), to_mm(INCH)),
-            placement=(fan_x, fan_y, fan_z),
+            placement=(mm(shape_bounds[0]), mm(shape_bounds[1]), mm(shape_bounds[2])),
             properties={"complex_type": "tapered_ceiling_fan_blade", "assembly_role": "fan_blade"},
         )
 
