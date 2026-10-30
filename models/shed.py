@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from build123d import Plane, Polyline, extrude, make_face
 from python_cad_tools.elements import Dimensions
-from python_cad_tools.geometry import box
-from python_cad_tools.units import INCH, Length, to_mm
+from python_cad_tools.geometry import bounds, box
+from python_cad_tools.units import INCH, Length, mm, to_mm
 
 from models.shared import CUT_MARGIN, ZERO
 
@@ -104,6 +105,35 @@ def add_shed(builder: Any, cfg: Any, shed_x: Length, shed_y: Length) -> tuple[Le
         cfg.SHED_ROOF_COLOR,
         parent_id=shed_parent_id,
         properties={**common, "assembly_role": "roof"},
+    )
+    # The two slope prisms are built up from their underside lines, so the rear
+    # wall plane is still open in a triangular gable void between them above
+    # ShedRearWall.  Close the shed envelope at the rear wall with one gable end
+    # wall in the rear wall plane whose rake edges follow the roof undersides:
+    # base on the wall top at z=96in, apex where the two undersides meet at the
+    # ridge (x=ridge, z=132in).
+    gable_profile = Plane.XZ * Polyline(
+        (to_mm(shed_x), to_mm(shed_wall_top)),
+        (to_mm(shed_x + cfg.SHED_WIDTH), to_mm(shed_wall_top)),
+        (to_mm(shed_ridge_x), to_mm(shed_ridge_z)),
+        close=True,
+    )
+    gable_shape = extrude(make_face(gable_profile), amount=to_mm(wall_thickness)).solid()
+    gable_shape = gable_shape.translate((0.0, to_mm(shed_y) - bounds(gable_shape)[1], 0.0))
+    gable_bounds = bounds(gable_shape)
+    builder.add_shape(
+        "shed",
+        "ShedRearGableWall",
+        gable_shape,
+        cfg.SHED_SIDING_COLOR,
+        Dimensions(to_mm(cfg.SHED_WIDTH), to_mm(wall_thickness), to_mm(cfg.SHED_ROOF_RISE)),
+        placement=(mm(gable_bounds[0]), mm(gable_bounds[1]), mm(gable_bounds[2])),
+        parent_id=shed_parent_id,
+        properties={
+            **common,
+            "assembly_role": "gable_end_wall",
+            "fills_gap_above": "complex.shed.shed_rear_wall",
+        },
     )
     front_door_x = shed_x + (cfg.SHED_WIDTH - cfg.SHED_FRONT_DOOR_WIDTH) / 2
     builder.add_box(
