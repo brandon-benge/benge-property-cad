@@ -47,10 +47,93 @@ def test_makeitours_workflow_uses_one_non_cancelling_repository_queue():
     assert text.count("makeitours-${{ github.repository }}") == 1
     assert "queue: max" in text
     assert "cancel-in-progress: false" in text
-    assert "github.actor == github.repository_owner" in text
+    assert "github.actor == github.repository_owner" not in text
     assert "startsWith(github.event.comment.body, '/mio')" in text
     assert "startsWith(github.event.comment.body, '/makeitours')" in text
     assert "'/oc'" not in text and "'/opencode'" not in text
+
+
+def _makeitours_job_text(name):
+    """One job's YAML text from makeitours.yml (the project has no YAML parser dependency)."""
+    text = MAKEITOURS_WORKFLOW.read_text()
+    match = re.search(rf"^  {name}:\n(.*?)(?=^  [a-z][a-z-]*:\n|\Z)", text, re.M | re.S)
+    assert match, f"makeitours.yml has no {name} job"
+    return match.group(1)
+
+
+def _authorize_script():
+    job = _makeitours_job_text("authorize")
+    block = job.split("        run: |\n", 1)[1]
+    lines = []
+    for line in block.splitlines():
+        if line.strip() and not line.startswith("          "):
+            break
+        lines.append(line[10:])
+    return "\n".join(lines).strip() + "\n"
+
+
+def test_makeitours_workflow_runs_only_for_authors_with_write_access():
+    """2026-11-13 (file-template-cad#27): the owner and collaborators with write, maintain or
+    admin permission run requests on the owner's key; read-only/triage members and strangers on
+    a public repository never reach the agent job. Checked live, without a container or secrets,
+    and refused when GitHub can't answer."""
+    authorize, agent = _makeitours_job_text("authorize"), _makeitours_job_text("makeitours")
+    assert "container:" not in authorize and "secrets." not in authorize
+    assert "    permissions:\n      contents: read\n" in authorize
+    script = _authorize_script()
+    assert "/collaborators/" in script and "/permission" in script
+    assert "admin|write) allowed=true" in script
+    assert script.startswith("allowed=false"), "the check must fail closed"
+    assert '[ "$ACTOR" = "$OWNER" ]' in script
+    assert "    needs: authorize\n" in agent
+    assert "    if: needs.authorize.outputs.allowed == 'true'\n" in agent
+    assert "      group: makeitours-${{ github.repository }}\n" in agent
+    assert "      cancel-in-progress: false\n" in agent
+    assert "container:" in agent and "secrets." in agent
+
+
+@pytest.mark.parametrize(
+    ("actor", "response", "allowed"),
+    [
+        ("owner", None, "true"),
+        ("writer", '{"permission": "write", "role_name": "write"}', "true"),
+        ("maintainer", '{"permission": "write", "role_name": "maintain"}', "true"),
+        ("admin", '{"permission": "admin", "role_name": "admin"}', "true"),
+        ("triager", '{"permission": "read", "role_name": "triage"}', "false"),
+        ("reader", '{"permission": "read", "role_name": "read"}', "false"),
+        ("stranger", '{"permission": "none", "role_name": "none"}', "false"),
+        ("unreachable", "FAIL", "false"),
+    ],
+)
+def test_makeitours_authorize_script_decides_by_permission(tmp_path, actor, response, allowed):
+    """Runs the authorize step's script with a stub curl standing in for GitHub."""
+    import shutil
+
+    if shutil.which("jq") is None:
+        pytest.skip("jq is not installed")
+    script = _authorize_script()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    curl = bin_dir / "curl"
+    if response == "FAIL":
+        curl.write_text("#!/bin/sh\nexit 22\n")
+    else:
+        (tmp_path / "response.json").write_text(response or "{}")
+        curl.write_text(f"#!/bin/sh\ncat '{tmp_path / 'response.json'}'\n")
+    curl.chmod(0o755)
+    output, summary = tmp_path / "output", tmp_path / "summary"
+    env = {
+        "PATH": f"{bin_dir}:/usr/bin:/bin",
+        "GH_TOKEN": "token",
+        "ACTOR": actor,
+        "OWNER": "owner",
+        "GITHUB_API_URL": "https://api.github.com",
+        "GITHUB_REPOSITORY": "owner/project",
+        "GITHUB_OUTPUT": str(output),
+        "GITHUB_STEP_SUMMARY": str(summary),
+    }
+    subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script], env=env, check=True)
+    assert output.read_text().strip() == f"allowed={allowed}"
 
 
 def test_makeitours_workflow_runs_the_pinned_runner_image():
@@ -498,3 +581,14 @@ def test_template_owned_docs_name_no_project():
         text = path.read_text().lower()
         assert "benge" not in text, path
     assert "`PROJECT_NAME` in `config.py`" in (PROJECT_ROOT / "README.md").read_text()
+
+
+def test_release_fails_when_the_template_flag_is_off():
+    """2026-11-13: new BYOI projects and Hosted exports use GitHub's /generate API, which needs
+    this repository marked "Template repository"; the release checks it first."""
+    text = (PROJECT_ROOT / ".github" / "workflows" / "release-template.yml").read_text()
+    guard = text.index("Check this repository is still a GitHub template")
+    assert guard < text.index("Determine release version")
+    assert "if: github.repository == 'brandon-benge/file-template-cad'" in text
+    assert "jq -r '.is_template'" in text
+    assert '[ "$is_template" != "true" ]' in text
