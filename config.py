@@ -192,6 +192,19 @@ CHIMNEY_CAP_OVERHANG = 4 * INCH
 TV_WIDTH = 48 * INCH
 TV_HEIGHT = 28 * INCH
 
+# Small outdoor side table standing on the upper deck beside the fireplace
+# lounge.  It sits one clearance distance out from the fireplace face on X and
+# the same distance forward of the fireplace front edge on Y.
+SIDE_TABLE_CLEARANCE_FROM_FIREPLACE = 6 * INCH
+SIDE_TABLE_WIDTH = 20 * INCH
+SIDE_TABLE_DEPTH = 20 * INCH
+SIDE_TABLE_HEIGHT = 22 * INCH
+SIDE_TABLE_TOP_THICKNESS = 1.5 * INCH
+SIDE_TABLE_LEG_SIZE = 1.5 * INCH
+SIDE_TABLE_SHELF_THICKNESS = 0.75 * INCH
+SIDE_TABLE_SHELF_HEIGHT = 5 * INCH
+SIDE_TABLE_COLOR = (0.42, 0.28, 0.16)
+
 KITCHEN_LENGTH = 7 * FOOT
 KITCHEN_DEPTH = 30 * INCH
 KITCHEN_COUNTER_HEIGHT = 38 * INCH

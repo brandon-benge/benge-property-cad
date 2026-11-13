@@ -69,6 +69,7 @@ def ifc_mapping(category: str, name: str) -> IfcMapping:
         "house": ("IfcWall", "STANDARD"),
         "pool": ("IfcBuildingElementProxy", "ELEMENT"),
         "rock-bed": ("IfcBuildingElementProxy", "ELEMENT"),
+        "furniture": ("IfcFurniture", "USERDEFINED"),
     }
     if category == "deck-framing":
         return (
@@ -160,6 +161,7 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("outdoor-kitchen", (0.12, 0.12, 0.12)): ("Cabinet Box (Wood)", 600.0),
     ("outdoor-kitchen", (0.12, 0.15, 0.16)): ("Stainless Steel Sink", 2700.0),
     ("outdoor-kitchen", (0.22, 0.22, 0.22)): ("Cabinet Door (Wood)", 600.0),
+    ("furniture", cfg.SIDE_TABLE_COLOR): ("Teak Outdoor Wood", 650.0),
     ("pool", cfg.WATER_COLOR): ("Water", 1000.0),
     ("pool", cfg.POOL_SHELL_COLOR): ("Pool Shell", 450.0),
     ("railing", cfg.RAILING_COLOR): ("Wood/Metal Railing", 500.0),
