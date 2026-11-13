@@ -231,6 +231,37 @@ def test_ci_yml_required_jobs():
         assert job in text, f"ci.yml missing required job: {job}"
 
 
+def _job_block(text: str, job: str) -> str:
+    match = re.search(rf"^  {re.escape(job)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)", text, re.M | re.S)
+    assert match, f"ci.yml missing job: {job}"
+    return match.group(1)
+
+
+def test_required_gate_needs_every_check_directly():
+    """required-gate fails unless every check it guards passed, and names a cancelled one."""
+    gate = _job_block((PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(), "required-gate")
+    needs = re.search(r"needs:\n((?:\s+- [\w-]+\n)+)", gate)
+    assert needs, "required-gate must list its needs"
+    listed = set(re.findall(r"- ([\w-]+)", needs.group(1)))
+    assert listed == {"changes", "locked-install", "checks", "compatibility-report"}
+    assert "if: always()" in gate
+    assert '== "cancelled"' in gate and "no runner was free" in gate
+
+
+def test_macos_locked_install_runs_only_for_dependency_changes():
+    """file-template-cad#21: macOS runner capacity must not block a design-only change, but a
+    dependency change still has to pass the macOS locked install before it publishes."""
+    text = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    install = _job_block(text, "locked-install")
+    assert "os: ${{ fromJSON(needs.changes.outputs.locked_install_os) }}" in install
+    assert "macos-latest" not in install, "macOS runs only when tools/dependency-change selects it"
+    assert "continue-on-error" not in install, "a macOS run that starts is still required"
+    changes = _job_block(text, "changes")
+    assert 'python3 tools/dependency-change "$BASE"' in changes
+    assert "status=success" in changes and "PULL_BASE" in changes
+    assert "actions: read" in changes
+
+
 def test_regular_ci_excludes_end_to_end_testing():
     text = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
     forbidden = [
@@ -380,11 +411,12 @@ def test_makeitours_workflow_does_not_reconcile_infrastructure_automatically():
     assert reconciler.is_file()
 
     # The reconciler never touches the four customer-owned paths, generated/,
-    # or the per-repo audit trail.
+    # the per-repo audit trail, or the images committed for AI requests.
     reconciler_text = reconciler.read_text()
     assert '_CUSTOMER_TOP_LEVEL = {"config.py", "model.py", "drawing_annotations.py"}' in reconciler_text
     assert "models/" in reconciler_text
     assert '".makeitours/audit"' in reconciler_text
+    assert '".makeitours/requests"' in reconciler_text
 
 
 def test_python_cad_tools_upgrader_agent_retired():
@@ -455,3 +487,14 @@ def test_python_cad_tools_release_asks_the_pinning_repositories_to_follow():
         'repositories="makeitours-app makeitours-agentic"' in step.split('if [ "$current" = "$previous" ]; then', 1)[1]
     )
     assert "event_type=cad-template-release" in step
+
+
+def test_template_owned_docs_name_no_project():
+    """2026-11-05: every project made from the template gets these files, and the
+    Hosted assistant answered "what is in this project?" from a README titled
+    "Benge Property CAD". The project's own name lives only in config.py."""
+    docs = [PROJECT_ROOT / "README.md", *(PROJECT_ROOT / ".agents").rglob("*.md")]
+    for path in docs:
+        text = path.read_text().lower()
+        assert "benge" not in text, path
+    assert "`PROJECT_NAME` in `config.py`" in (PROJECT_ROOT / "README.md").read_text()
