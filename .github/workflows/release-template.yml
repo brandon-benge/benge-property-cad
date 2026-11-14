@@ -43,7 +43,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           is_template=$(curl --silent --show-error --fail --max-time 20 \
-            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            --oauth2-bearer "$GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY" | jq -r '.is_template')
           if [ "$is_template" != "true" ]; then
             echo "::error title=Not a template repository::$GITHUB_REPOSITORY is not marked as a template repository, so MakeItOurs can't create projects from it. Turn on Settings > General > Template repository, then re-run this release."
@@ -72,14 +72,21 @@ jobs:
           echo "tag=v${release_version}" >> "$GITHUB_OUTPUT"
 
       - name: Create deterministic template archive
-        # The archive also carries .makeitours/template-release.json (its own tag), and the
+        # The template's archive also carries .makeitours/template-release.json (its own tag), and the
         # release publishes template-policy.json beside it (2026-10-09 approval,
         # project-upgrade-button). Repacked with sorted names, the commit's time and
         # numeric owners, so the same commit and tag always give the same bytes.
+        # In a project made from the template, the project's own tag is not a template
+        # release: --project keeps the template-release.json the project committed instead
+        # of writing one from that tag (file-template-cad#32).
         run: |
           rm -rf staging && mkdir staging
           git archive --format=tar --prefix=file-template-cad/ HEAD | tar -x -C staging
-          python3 tools/release-identity staging/file-template-cad \
+          project_flag=""
+          if [ "$GITHUB_REPOSITORY" != "brandon-benge/file-template-cad" ]; then
+            project_flag="--project"
+          fi
+          python3 tools/release-identity $project_flag staging/file-template-cad \
             "${{ steps.version.outputs.tag }}" "$(git rev-parse HEAD)" template-policy.json
           tar --sort=name --mtime="@$(git log -1 --format=%ct)" --owner=0 --group=0 --numeric-owner \
             --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
@@ -127,11 +134,24 @@ jobs:
       # that changes python-cad-tools also asks makeitours-app (the Mac app bundles only the
       # lock). Each opens or updates its pin-bump pull request. Only the template
       # repository sends it; projects carry this workflow as infrastructure.
+      # makeitours#194: a short-lived MakeItOurs CI App token, limited to Contents write on
+      # the two pinning repositories (a repository dispatch needs nothing else), replaces
+      # the stored follow PAT.
+      - name: CI App token for the pinning repositories
+        id: follow_token
+        if: github.repository == 'brandon-benge/file-template-cad' && vars.MIO_CI_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.MIO_CI_APP_ID }}
+          private-key: ${{ secrets.MIO_CI_APP_PRIVATE_KEY }}
+          repositories: makeitours-app,makeitours-agentic
+          permission-contents: write
+
       - name: Ask the pinning repositories to follow this release
         if: github.repository == 'brandon-benge/file-template-cad'
         env:
           GH_TOKEN: ${{ github.token }}
-          FOLLOW_TOKEN: ${{ secrets.MAKEITOURS_FOLLOW_TOKEN }}
+          FOLLOW_TOKEN: ${{ steps.follow_token.outputs.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           current="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["python_cad_tools"])' template-policy.json)"
@@ -149,7 +169,7 @@ jobs:
             repositories="makeitours-app makeitours-agentic"
           fi
           if [ -z "$FOLLOW_TOKEN" ]; then
-            echo "::warning::MAKEITOURS_FOLLOW_TOKEN is not set, so $repositories were not asked to follow $TAG."
+            echo "::warning::MIO_CI_APP_ID is not set, so $repositories were not asked to follow $TAG."
             exit 0
           fi
           for repository in $repositories; do
