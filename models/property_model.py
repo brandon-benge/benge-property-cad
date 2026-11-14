@@ -11,7 +11,6 @@ import config as cfg
 from models.builder import ModelBuilder
 from models.decks import add_decks
 from models.features import add_features
-from models.furniture import add_furniture
 from models.landscape import add_landscape
 from models.lighting import add_skirt_lights, add_stair_lights
 from models.play_accessories import add_play_accessories
@@ -53,9 +52,6 @@ def build_model(context: BuildContext) -> DesignModel:
     upper_stair_end = roof.upper_stair_end
 
     add_features(builder, cfg, roof_back_z, roof_front_z, sliding_door_x, sliding_door_y)
-
-    # Small outdoor side table beside the fireplace lounge on the upper deck.
-    add_furniture(builder, cfg, cfg.FIREPLACE_WIDTH, -cfg.FIREPLACE_DEPTH)
 
     add_spa(builder, cfg, hot_tub_x, hot_tub_y)
 
