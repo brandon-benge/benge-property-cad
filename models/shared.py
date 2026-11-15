@@ -146,6 +146,8 @@ MATERIAL_REGISTRY: dict[tuple[str, Color], tuple[str, float | None]] = {
     ("feature", (0.08, 0.10, 0.12)): ("Hot Tub Shell", 150.0),
     ("feature", cfg.RAILING_COLOR): ("Ceiling Fan Assembly", 500.0),
     ("feature", cfg.SKIRTING_COLOR): ("Fan Blade (Wood)", 600.0),
+    ("feature", cfg.DECK_COLOR): ("Composite Decking", 700.0),
+    ("feature", cfg.DECK_SIDE_TABLE_FRAME_COLOR): ("Pressure-Treated Lumber", 500.0),
     ("fireplace", cfg.BRICK_COLOR): ("Brick Masonry", 2000.0),
     ("fireplace", (0.90, 0.28, 0.08)): ("Electric Fireplace Insert", 500.0),
     ("fireplace", (0.02, 0.02, 0.025)): ("Flat Screen TV", 300.0),

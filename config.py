@@ -192,6 +192,21 @@ CHIMNEY_CAP_OVERHANG = 4 * INCH
 TV_WIDTH = 48 * INCH
 TV_HEIGHT = 28 * INCH
 
+# Small side table on the upper deck beside the fireplace lounge.  It stands on
+# the deck boards just south-east of the masonry fireplace body, so it reads as
+# part of the fireplace seating group without blocking the firebox face or the
+# sliding-door approach.
+DECK_SIDE_TABLE_CENTER_X = 60 * INCH
+DECK_SIDE_TABLE_CENTER_Y = -118 * INCH
+DECK_SIDE_TABLE_TOP_SIZE = 20 * INCH
+DECK_SIDE_TABLE_TOP_THICKNESS = 1.5 * INCH
+DECK_SIDE_TABLE_HEIGHT = 22 * INCH
+DECK_SIDE_TABLE_LEG_SIZE = 2 * INCH
+DECK_SIDE_TABLE_LEG_INSET = 2 * INCH
+DECK_SIDE_TABLE_SHELF_THICKNESS = 1 * INCH
+DECK_SIDE_TABLE_SHELF_ABOVE_DECK = 6 * INCH
+DECK_SIDE_TABLE_FRAME_COLOR = (0.30, 0.25, 0.20)
+
 KITCHEN_LENGTH = 7 * FOOT
 KITCHEN_DEPTH = 30 * INCH
 KITCHEN_COUNTER_HEIGHT = 38 * INCH

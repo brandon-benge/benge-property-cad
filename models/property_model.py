@@ -9,6 +9,7 @@ from python_cad_tools.units import FOOT, INCH, to_mm
 
 import config as cfg
 from models.builder import ModelBuilder
+from models.deck_furniture import add_deck_furniture
 from models.decks import add_decks
 from models.features import add_features
 from models.landscape import add_landscape
@@ -52,6 +53,8 @@ def build_model(context: BuildContext) -> DesignModel:
     upper_stair_end = roof.upper_stair_end
 
     add_features(builder, cfg, roof_back_z, roof_front_z, sliding_door_x, sliding_door_y)
+
+    add_deck_furniture(builder, cfg)
 
     add_spa(builder, cfg, hot_tub_x, hot_tub_y)
 
